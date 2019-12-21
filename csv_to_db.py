@@ -19,7 +19,7 @@ df = pd.read_csv('../AIS_data/AIS_ASCII_by_UTM_Month/2017_v2/AIS_2017_01_Zone04.
 ship_info = df[['MMSI', 'VesselName', 'IMO', 'CallSign', 'VesselType',
                 'Length', 'Width']]
 ship_info.drop_duplicates(inplace=True)
-ship_position = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'SOG', 'COG', 
+ship_position = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'SOG', 'COG',
                     'Heading', 'Status']]
 ship_info.drop_duplicates(inplace=True)
 del df
@@ -54,7 +54,7 @@ conn.commit()
 c.close()
 #%% Insert ship_info data
 c = conn.cursor()
-sql_insert = """INSERT INTO ship_info(MMSI, name, IMO, callsign, type, length, 
+sql_insert = """INSERT INTO ship_info(MMSI, name, IMO, callsign, type, length,
 width) VALUES(%s,%s,%s,%s,%s,%s,%s)"""
 for name,row in ship_info.iterrows():
     try:
@@ -63,7 +63,7 @@ for name,row in ship_info.iterrows():
     except:
         print('Failure to insert:', name)
 c.close()
-    
+
 #%%
 # Create "ship_position" table in the "ais_data" database.
 c = conn.cursor()
@@ -82,11 +82,11 @@ conn.commit()
 c.close()
 #%% Insert ship_position data
 c = conn.cursor()
-sql_insert = """INSERT INTO ship_position(MMSI, time, lat, lon, sog, cog, 
+sql_insert = """INSERT INTO ship_position(MMSI, time, lat, lon, sog, cog,
 heading, status) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)"""
 for name,row in ship_position.iterrows():
     try:
-        c.execute(sql_insert, (row[0], row[1], row[2], row[3], row[4], row[5], 
+        c.execute(sql_insert, (row[0], row[1], row[2], row[3], row[4], row[5],
                                row[6], row[7]))
         conn.commit()
     except:
