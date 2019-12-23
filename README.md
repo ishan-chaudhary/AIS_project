@@ -15,6 +15,12 @@ The project has three major phases.
   
   Each phase has multiple individual projects.  This readme will try to document the project and track development.
   
+  ## Data Sources
+  Easy to scrape website
+  https://coast.noaa.gov/htdata/CMSP/AISDataHandler/2017/index.html
+  Pretty website:
+  https://marinecadastre.gov/ais/
+  
   ## Required Software
   - PostGreSQL with post GIS
   - PG Admin 4
