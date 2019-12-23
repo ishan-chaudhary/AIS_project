@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS ship_trips;
 
+-- optimizied query (or at least best practices)
 CREATE TABLE ship_trips AS
 SELECT mmsi,
 		position_count,
@@ -18,6 +19,7 @@ FROM (
  GROUP BY pos.mmsi) AS foo;
  
  -- original query
+CREATE TABLE ship_trips AS
 SELECT pos.mmsi,
 ST_MakeLine(pos.geom ORDER BY pos.time) AS line,
 ST_Length(ST_MakeLine(pos.geom ORDER BY pos.time))/1000 as line_lengh,
