@@ -9,24 +9,26 @@ Created on Sun Dec 22 23:21:13 2019
 import os
 import glob
 from zipfile import ZipFile 
+import shutil
 
 #%%
 os.getcwd()
 
 #%%
-for file in glob.glob('/Users/patrickmaus/Documents/projects/AIS_data/2017/*AIS_2017_01_Zone10.zip'):
+for file in glob.glob('/Users/patrickmaus/Documents/projects/AIS_data/2017/*.zip'):
     print (file)
     with ZipFile(file, 'r') as zip: 
     # printing all the contents of the zip file 
         zip.printdir() 
       
         # extracting all the files 
-        print('Extracting all the files now...') 
+        print('Extracting files now...') 
         zip.extractall('/Users/patrickmaus/Documents/projects/AIS_data/2017_unzipped') 
         print('Done!') 
         
-#%%
- with ZipFile('my_python_files.zip','w') as zip: 
-    # writing each file one by one 
-    for file in file_paths: 
-        zip.write(file) 
+
+#%% shutil will delete the whole tree.  since this tree is created every time
+## a file is unzipped, we can use it at the end of each file in the for loop 
+## to free up memory
+        
+shutil.rmtree('/Users/patrickmaus/Documents/projects/AIS_data/2017_unzipped/AIS_ASCII_by_UTM_Month')

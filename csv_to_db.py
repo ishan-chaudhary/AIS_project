@@ -8,23 +8,12 @@ Created on Sun Dec 15 22:44:11 2019
 
 #for connecting to databases
 import psycopg2
+import pandas as pd
 from sqlalchemy import create_engine
 
-import pandas as pd
 pd.set_option('display.expand_frame_repr', False)
-#%%
-df = pd.read_csv('../AIS_data/AIS_ASCII_by_UTM_Month/2017_v2/AIS_2017_01_Zone04.csv')
 
-#%% Parse df into two seperate dataframes for the different tables
-ship_info = df[['MMSI', 'VesselName', 'IMO', 'CallSign', 'VesselType',
-                'Length', 'Width']]
-ship_info.drop_duplicates(inplace=True)
-ship_position = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'SOG', 'COG',
-                    'Heading', 'Status']]
-ship_info.drop_duplicates(inplace=True)
-del df
-
-#%%
+#%% Make and test conn and cursor
 conn = psycopg2.connect(host="localhost",database="ais_data")
 c = conn.cursor()
 if c:
@@ -32,70 +21,119 @@ if c:
 c.close()
 #%% Drop tables if needed
 c = conn.cursor()
-c.execute('drop table if exists ship_info')
-c.execute('drop table if exists ship_position')
+c.execute('drop table if exists ship_info cascade')
+c.execute('drop table if exists ship_position cascade')
 conn.commit()
 c.close()
 
-#%%
-# Create "ship_info" table in the "ais_data" database.
+#%% Create "ship_info" table in the "ais_data" database.
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS ship_info
 (
-    MMSI text,
+    id serial,
+    mmsi text,
     name text,
-    IMO text,
+    imo text,
     callsign text,
-    type text,
-    length numeric,
-    width numeric
+    type text
 );""")
 conn.commit()
 c.close()
+#%% Create "ship_position" table in the "ais_data" database.
+c = conn.cursor()
+c.execute("""CREATE TABLE IF NOT EXISTS ship_position
+(
+    id serial,    
+    mmsi text,
+    time timestamp,
+    lat numeric,
+    lon numeric
+);""")
+conn.commit()
+c.close()
+#%% Function draft
+file_path = '/Users/patrickmaus/Documents/projects/AIS_project/AIS_ASCII_by_UTM_Month/2017_v2/AIS_2017_01_Zone10.csv'
+chunk_size = 1000000
+engine = create_engine('postgresql://patrickmaus@localhost:5432/ais_data')
+
+for df in pd.read_csv(file_path, chunksize = chunk_size):
+    try:
+        c = conn.cursor()
+        ship_info = df[['MMSI', 'VesselName', 'IMO', 'CallSign', 'VesselType']]
+        ship_info = ship_info.rename({'MMSI':'mmsi', 'VesselName':'name', 
+                                      'IMO':'imo', 'CallSign':'callsign', 
+                                      'VesselType':'type'}, axis='columns')
+        ship_info.set_index('mmsi', inplace=True)
+        ship_info.drop_duplicates(inplace=True)
+        ship_info.to_sql('ship_info', engine, if_exists='append')
+        conn.commit()
+        c.close()
+    except:
+        print('Error in index range for ship_info: ', 
+              df.iloc[0].name, df.iloc[-1].name)
+        
+    try:
+        c = conn.cursor()
+        ship_position = df[['MMSI', 'BaseDateTime', 'LAT', 'LON']]
+        ship_position = ship_position.rename({'MMSI':'mmsi', 'BaseDateTime':'time', 
+                                      'LAT':'lat', 'LON':'lon'}, axis='columns')
+        ship_position.to_sql('ship_position', engine, if_exists='append',
+                             index=False)
+        conn.commit()
+        c.close()
+    except:
+        print('Error in index range for ship_position: ', 
+              df.iloc[0].name, df.iloc[-1].name)
+          
+c = conn.cursor()
+c.execute("""DELETE FROM ship_info WHERE ship_info.id NOT IN 
+              (SELECT id FROM 
+              (SELECT DISTINCT ON (mmsi) *
+              FROM ship_info) as foo);""")
+conn.commit()
+
+c.close()
+    
+#%%
+ship_position = df[['MMSI', 'BaseDateTime', 'LAT', 'LON']]
+ship_position = ship_position.rename({'MMSI':'mmsi', 'BaseDateTime':'time', 
+                              'LAT':'lat', 'LON':'lon'}, axis='columns')
+ship_position.to_sql('ship_position', engine, if_exists='append', index = False)
+#%%
+df.iloc[-1].name
+df.iloc[0].name
+
+
+
+
+
+
+
+
 #%% Insert ship_info data
 c = conn.cursor()
-sql_insert = """INSERT INTO ship_info(MMSI, name, IMO, callsign, type, length,
-width) VALUES(%s,%s,%s,%s,%s,%s,%s)"""
+sql_insert = """INSERT INTO ship_info(MMSI, name, IMO, callsign, type) VALUES(%s,%s,%s,%s,%s)"""
 for name,row in ship_info.iterrows():
     try:
-        c.execute(sql_insert, (row[0], row[1], row[2], row[3], row[4], row[5], row[6]))
+        c.execute(sql_insert, (row[0], row[1], row[2], row[3], row[4]))
         conn.commit()
     except:
         print('Failure to insert:', name)
 c.close()
 
-#%%
-# Create "ship_position" table in the "ais_data" database.
-c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS ship_position
-(
-    MMSI text,
-    time timestamp,
-    lat numeric,
-    lon numeric,
-    sog numeric,
-    cog numeric,
-    heading numeric,
-    status text
-);""")
-conn.commit()
-c.close()
+
 #%% Insert ship_position data
 c = conn.cursor()
-sql_insert = """INSERT INTO ship_position(MMSI, time, lat, lon, sog, cog,
-heading, status) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)"""
+sql_insert = """INSERT INTO ship_position(mmsi, time, lat, lon, status) VALUES(%s,%s,%s,%s,%s)"""
 for name,row in ship_position.iterrows():
-    try:
-        c.execute(sql_insert, (row[0], row[1], row[2], row[3], row[4], row[5],
-                               row[6], row[7]))
-        conn.commit()
-    except:
-        print('Failure to insert:', name)
+    c.execute(sql_insert, (row[0], row[1], row[2], row[3], row[4]))
+    conn.commit()
+
 c.close()
 #%%
 del ship_info
 del ship_position
 #%% Using SQL Alchemy
-engine = create_engine('postgresql://patrickmaus@localhost:5432/ais_data')
-ship_info.to_sql('ship_info', engine, if_exists='replace')
-ship_position.to_sql('ship_position', engine, if_exists='replace')
+#engine = create_engine('postgresql://patrickmaus@localhost:5432/ais_data')
+#ship_info.to_sql('ship_info', engine, if_exists='replace')
+#ship_position.to_sql('ship_position', engine, if_exists='replace')
