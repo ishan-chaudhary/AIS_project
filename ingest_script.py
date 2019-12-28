@@ -32,7 +32,6 @@ c.close()
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS ship_info
 (
-    id serial,
     mmsi text,
     name text,
     imo text,
@@ -40,12 +39,13 @@ c.execute("""CREATE TABLE IF NOT EXISTS ship_info
     type text
 );""")
 conn.commit()
+c.execute("""CREATE INDEX mmsi_index on ship_info (mmsi);""")
+conn.commit()
 c.close()
 #%% Create "ship_position" table in the "ais_data" database.
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS ship_position
-(
-    id serial,    
+(  
     mmsi text,
     time timestamp,
     lat numeric,
@@ -78,7 +78,8 @@ for file_name in glob.glob(source_dir):
                                           'VesselType':'type'}, axis='columns')
             ship_info.set_index('mmsi', inplace=True)
             ship_info.drop_duplicates(inplace=True)
-            ship_info.to_sql('ship_info', engine, if_exists='append')
+            ship_info.to_sql('ship_info', engine, if_exists='append', 
+                             index = False)
             conn.commit()
             c.close()
         except:
@@ -114,3 +115,10 @@ for file_name in glob.glob(source_dir):
     
     print('Finished: ', file_name)
     print('Time elapsed: ', lapse)
+
+# Notes
+    # Create a processing file to record start and stop times for each run.
+    # Add filters to just get zones 14 through 20 so dont have to manually delete
+    # add option for number of months to ingest so dont have to manually delete
+    # add indexes
+    
