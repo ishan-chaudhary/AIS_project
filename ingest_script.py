@@ -173,5 +173,11 @@ for file_name in glob.glob(source_dir):
     
     print('Finished: ', file_name)
     print('Time elapsed: ', lapse)
-
+    
+    #%%
+c = conn.cursor()
+c.execute("""create table ship_trips_3 AS
+SELECT * FROM ship_trips;;""")
+conn.commit()
+c.close()
     
