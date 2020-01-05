@@ -7,7 +7,6 @@ Created on Fri Dec 20 22:06:44 2019
 """
 
 import psycopg2
-import random
 import pandas as pd
 
 #%% Establish connection and test
@@ -17,24 +16,29 @@ if c:
     print('Connection is good.')
 c.close()
 #%% Select random samples
+mmsi_sample = pd.read_csv('/Users/patrickmaus/Documents/projects/AIS_project/sample_mmsi.csv')
+
+#%% make sample table
 c = conn.cursor()
-c.execute('select distinct mmsi from ship_position')
-mmsi_list = c.fetchall()
-random.seed(1)
-mmsi_sample = random.sample(mmsi_list, 10)
+c.execute("""CREATE TABLE IF NOT EXISTS ship_position_sample
+(  
+    mmsi text,
+    time timestamp,
+    lat numeric,
+    lon numeric,
+    point_geog geometry
+);""")
+conn.commit()
+c.close()
 #%% Select all data for each mmsi and make a new table with sample data
-for m in mmsi_sample:
+for m in mmsi_sample['mmsi'].to_list():
     
+    print('Getting records for MMSI {}...'.format(str(m)))
     c = conn.cursor()
-    c.execute("""select count(*) from ship_position 
-              where mmsi = '{}'""".format(m[0]))
-    m_count = c.fetchone()[0]
-    print('Getting {} records for MMSI {}...'.format(m_count, m[0]))
-    
     c.execute("""insert into ship_position_sample
               select * from ship_position 
-              where mmsi = '{}'""".format(m[0]))
+              where mmsi = '{}'""".format(str(m)))
     conn.commit()
     c.close()
-    print('{} added'.format(m[0]))
+    print('{} added'.format(str(m)))
 

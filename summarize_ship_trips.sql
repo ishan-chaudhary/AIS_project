@@ -43,6 +43,9 @@ CREATE TABLE ship_position_sample AS
 SELECT * FROM 
 (SELECT mmsi, time, lat, lon FROM ship_position limit 500000) as Foo;
 
+-- create an index on mmsi to see if its faster than the ~30 mins without
+CREATE INDEX mmsi_index_ship_position on ship_position (mmsi);
+
 
 -- make point_geog column
 ALTER TABLE ship_position_sample 
@@ -73,4 +76,8 @@ FROM (
  MAX (pos.time) as last_date
  FROM ship_position_sample as pos
  GROUP BY pos.mmsi) AS foo;
+ 
+CREATE TABLE ship_position_sample AS
+SELECT * FROM ship_position
+WHERE mmsi = '316024713';
  
