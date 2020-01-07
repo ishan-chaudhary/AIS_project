@@ -68,6 +68,16 @@ The project has three major phases.
   ### Create Samples for Further analysis
   Python script "populate_sample" takes the csv output of the sample MMSIs from the Jupyter Notebook "ships_trips_analysis" and adds all positions from the "ship_position" table to a new "ship_position_sample" table.
 
+  ### A note on Spatial Indices
+  I first failed to create spatial indices at all.  This led to a 2 minute 45 second spatial join between a table with 9265 positions and the WPI table with 3630 ports.  By adding a spatial index with the below syntax to both tables, the query then took only 124 msec.  Running the same query against over 2 million rows in the sample data took 2.6 seconds.
+
+  CREATE INDEX wpi_geog_idx
+  ON wpi
+  USING GIST (geog);
+  CREATE INDEX ship_test_geog_idx
+  ON ship_test
+  USING GIST (geog);
+
   ## Notes on Visualizing in QGIS
 
   Large numbers of points within a vector layer can severely impact rendering performance within QGIS.  Recommend using the "Set Layer Scale Visibility" to only show the points at a certain scale.  Currently I found a minimum of 1:100000 appropriate with no maximum.  Ship trips can have no scale visbility because they render much faster.
@@ -82,3 +92,6 @@ The project has three major phases.
   ## Network Analysis
 
   First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.  
+
+  ### Reducing Raw position data
+  Unfortunately we have to use the more dense point data rather than the lines.  Because there are sometimes gaps in coverage, a line will not follow the actual ships path and "jump".  If the line is near any port, it would trigger a false positive.

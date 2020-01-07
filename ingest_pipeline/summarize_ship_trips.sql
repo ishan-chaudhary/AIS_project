@@ -3,11 +3,18 @@ CREATE EXTENSION postgis;
 
 -- make point_geog column
 ALTER TABLE ship_position 
-ADD COLUMN point_geog geometry (Point, 4326);
+ADD COLUMN geog geography (Point, 4326);
 
--- populate point_geog column
-UPDATE ship_position SET point_geog = ST_SetSRID(
+-- populate geog column
+UPDATE ship_position SET geog = ST_SetSRID(
 	ST_MakePoint(lon, lat), 4326);
+	
+-- create indices on ship_positions
+CREATE INDEX ship_position_mmsi_idx on ship_position (mmsi);
+CREATE INDEX ship_position_geog_idx
+  ON ship_position
+  USING GIST (geog);
+  
 
 -- clear table
 DROP TABLE IF EXISTS ship_trips;
@@ -23,15 +30,18 @@ SELECT mmsi,
 		last_date - first_date as time_diff
 FROM (
  SELECT pos.mmsi,
- COUNT (pos.point_geog) as position_count,
- ST_MakeLine(pos.point_geog ORDER BY pos.time) AS line,
+ COUNT (pos.geog) as position_count,
+ ST_MakeLine(pos.geog ORDER BY pos.time) AS line,
  MIN (pos.time) as first_date,
  MAX (pos.time) as last_date
  FROM ship_position as pos
  GROUP BY pos.mmsi) AS foo;
  
 -- create mmsi index on ship_trips
-CREATE INDEX mmsi_index_ship_trips on ship_trips (mmsi);
+CREATE INDEX ship_trips_mmsi_idx on ship_trips (mmsi);
+
+
+
 
 -- SAMPLING PRACTICE
 -- clear table
