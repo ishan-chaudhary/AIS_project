@@ -33,6 +33,9 @@ FROM (
 -- create mmsi index on ship_trips
 CREATE INDEX mmsi_index_ship_trips on ship_trips (mmsi);
 
+
+
+
 -- SAMPLING PRACTICE
 -- clear table
 DROP TABLE IF EXISTS ship_position_sample;

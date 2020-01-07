@@ -20,6 +20,9 @@ The project has three major phases.
   https://coast.noaa.gov/htdata/CMSP/AISDataHandler/2017/index.html
   Pretty website:
   https://marinecadastre.gov/ais/
+  World Port Index (loaded using QGIS into Post GIS)
+  https://msi.nga.mil/Publications/WPI
+
 
   ## Required Software
   - PostGreSQL with post GIS
@@ -65,7 +68,17 @@ The project has three major phases.
   ### Create Samples for Further analysis
   Python script "populate_sample" takes the csv output of the sample MMSIs from the Jupyter Notebook "ships_trips_analysis" and adds all positions from the "ship_position" table to a new "ship_position_sample" table.
 
+  ## Notes on Visualizing in QGIS
+
+  Large numbers of points within a vector layer can severely impact rendering performance within QGIS.  Recommend using the "Set Layer Scale Visibility" to only show the points at a certain scale.  Currently I found a minimum of 1:100000 appropriate with no maximum.  Ship trips can have no scale visbility because they render much faster.
+
 
   ## Clustering
 
   Note, when we get there, we will have to look at how to repersent time.  If we include it as a Z dimension, the scale will impact different clustering spaces.  Perhaps we can run the same clustering approaches with different time scales to show how it can impact the final clusters.
+
+  Can I use labeled clusters of "ports" to identify the critical values for distance in time and space, and then apply those parameters against the rest of the data.
+
+  ## Network Analysis
+
+  First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.  
