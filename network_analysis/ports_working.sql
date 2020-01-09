@@ -27,9 +27,9 @@ CREATE INDEX ship_test_geog_idx
   USING GIST (geog); 
 
 --Spatial joins with geog points
-CREATE TABLE port_activity AS
+CREATE TABLE port_activity_sample AS
 SELECT s.mmsi, s.time, wpi.port_name
-FROM ship_position AS s
+FROM ship_position_sample AS s
 JOIN wpi 
 ON ST_DWithin(s.geog, wpi.geog, 2000);
 
@@ -41,3 +41,21 @@ group by(mmsi,port_name)
 order by (mmsi, min(time));
 
 select * from ship_position limit 5;
+
+-- recraft sql query to get input for network building
+
+CREATE TABLE port_activity_test AS
+SELECT s.mmsi, s.time, wpi.port_name
+FROM ship_test AS s
+JOIN wpi 
+ON ST_DWithin(s.geog, wpi.geog, 2000);
+
+CREATE TABLE port_activity_test_reduced AS
+select min(time) as arrive, max(time) as depart, max(time) - min(time) as time_diff, 
+count(mmsi), port_name 
+from port_activity_test 
+group by port_name
+order by min(time);
+
+
+

@@ -95,3 +95,6 @@ The project has three major phases.
 
   ### Reducing Raw position data
   Unfortunately we have to use the more dense point data rather than the lines.  Because there are sometimes gaps in coverage, a line will not follow the actual ships path and "jump".  If the line is near any port, it would trigger a false positive.
+
+  - I also need to add a conditional that looks for a minimum of X time at each port to prevent a ship from traveling by numerous ports to be listed as in port.
+  - Also need to catch ships departing a port and then returning to the same.  Right now that is missed and treated all as one port visit.
