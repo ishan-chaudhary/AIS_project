@@ -1,11 +1,65 @@
-import praw
+import psycopg2
+import pandas as pd
+import matplotlib as plt
+import networkx as nx
 
-reddit = praw.Reddit(client_id='LXzg4PrQwqaD1g',
-                     client_secret=,
-                     user_agent='redhairedcelt')
-print(reddit.read_only)
+#%% Make and test conn and cursor
+conn = psycopg2.connect(host="localhost",database="ais_data")
+c = conn.cursor()
+if c:
+    print('Connection is good.')
+c.close()
+
+#%% Get the df from the database
+port_df = pd.read_sql('select * from port_activity_reduced', conn)
+
+#%% restructure the df to be ingested by networkx.  
+# Each row needs to be start node, end node, and then attributes
+port_dict = {}
+for idx in range(len(port_df)):
+    try:
+        origin = port_df.iloc[idx, 5]
+        destination = port_df.iloc[idx + 1, 5]
+        depart_time = port_df.iloc[idx, 1]
+        arrival_time = port_df.iloc[idx + 1, 0]
+        
+        port_dict[idx] = [origin, destination]
+        attributes = {(origin, destination): {'depart_time': depart_time,
+                 'arrival_time': arrival_time}}
+        
+    except: continue
+
+
 #%%
-for submission in reddit.subreddit('learnpython').hot(limit=10):
-    print(submission.title)
+
+port_dict = {}
+port_list = []
+for idx in range(len(port_df)):
+    try:
+        origin = port_df.iloc[idx, 4]
+        destination = port_df.iloc[idx + 1, 4]
+        depart_time = port_df.iloc[idx, 1]
+        arrival_time = port_df.iloc[idx + 1, 0]
+        
+        port_list.append((origin, destination, {'depart_time': depart_time}))
+        
+    except: 
+        print(idx)
+        continue
+
+#%%
+
+G = nx.MultiDiGraph()
+G.add_edges_from(port_list)
+
+#nx.draw(G)
+nx.draw_networkx(G)
 
 
+#%%
+for k, v in G.degree():
+    print (k,v)
+
+
+
+#%%
