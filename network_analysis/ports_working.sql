@@ -1,3 +1,4 @@
+-- for testing
 create table ship_test as
 select * from ship_position_sample
 where mmsi = '338227000';
@@ -28,34 +29,32 @@ CREATE INDEX ship_test_geog_idx
 
 --Spatial joins with geog points
 CREATE TABLE port_activity_sample AS
-SELECT s.mmsi, s.time, wpi.port_name
+SELECT s.mmsi, s.time, wpi.port_name, wpi.id as port_id
 FROM ship_position_sample AS s
 JOIN wpi 
 ON ST_DWithin(s.geog, wpi.geog, 2000);
 
 -- Reduce all port activity to the first and last position at port
-CREATE TABLE port_activity_reduced AS
-select mmsi, min(time), max(time), port_name 
-from port_activity 
-group by(mmsi,port_name) 
+CREATE TABLE port_activity_sample_reduced AS
+select mmsi, min(time), max(time), port_name, port_id
+from port_activity_sample 
+group by(mmsi,port_id, port_name) 
 order by (mmsi, min(time));
 
 select * from ship_position limit 5;
 
 -- recraft sql query to get input for network building
 
-CREATE TABLE port_activity_test AS
-SELECT s.mmsi, s.time, wpi.port_name
-FROM ship_test AS s
+CREATE TABLE port_activity AS
+SELECT s.mmsi, s.time, wpi.port_name, wpi.id as port_id
+FROM ship_position AS s
 JOIN wpi 
 ON ST_DWithin(s.geog, wpi.geog, 2000);
 
-CREATE TABLE port_activity_test_reduced AS
-select min(time) as arrive, max(time) as depart, max(time) - min(time) as time_diff, 
-count(mmsi), port_name 
-from port_activity_test 
-group by port_name
-order by min(time);
-
+CREATE TABLE port_activity_reduced AS
+select mmsi, min(time), max(time), port_name, port_id
+from port_activity 
+group by(mmsi,port_id, port_name) 
+order by (mmsi, min(time));
 
 

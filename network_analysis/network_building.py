@@ -15,24 +15,11 @@ port_df = pd.read_sql('select * from port_activity_reduced', conn)
 
 #%% restructure the df to be ingested by networkx.  
 # Each row needs to be start node, end node, and then attributes
-port_dict = {}
-for idx in range(len(port_df)):
-    try:
-        origin = port_df.iloc[idx, 5]
-        destination = port_df.iloc[idx + 1, 5]
-        depart_time = port_df.iloc[idx, 1]
-        arrival_time = port_df.iloc[idx + 1, 0]
-        
-        port_dict[idx] = [origin, destination]
-        attributes = {(origin, destination): {'depart_time': depart_time,
-                 'arrival_time': arrival_time}}
-        
-    except: continue
 
 
 #%%
 
-port_dict = {}
+
 port_list = []
 for idx in range(len(port_df)):
     try:
@@ -52,8 +39,7 @@ for idx in range(len(port_df)):
 G = nx.MultiDiGraph()
 G.add_edges_from(port_list)
 
-#nx.draw(G)
-nx.draw_networkx(G)
+
 
 
 #%%
@@ -63,3 +49,5 @@ for k, v in G.degree():
 
 
 #%%
+#nx.draw(G)
+nx.draw_networkx(G)
