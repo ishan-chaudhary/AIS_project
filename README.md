@@ -52,14 +52,12 @@ The project has three major phases.
   ### Ingest pipelines
   First we create a new database "AIS_data" and then build a Post GIS extension.  Then we run the python script "ingest script".  This will establish a connection to the database, create a table "ship_info" and a table "ship_position".  We'll then read the AIS data from a source directory, unzip each file, and read each csv file in chunks using pandas.  We'll write data to "ship_info" and "ship_position".
 
-  Still to do on ingest script:
-  - Set up scrape from remote website
-  - set up filters for zones and months
-  - ingest ship info table as well
-  - move away from pandas with chunks
-
   ### Analyze Bulk Ingested Data
   The next step is to summarize the millions of ship positions to a smaller table with each MMSI, the total number of positions for each MMSI, a geometry object that reduces the points to a line, the length of that line in kilometers, the first date a MMSI was "heard", the last date the MMSI was "heard", and the total length of time between first and last "heard".  We can use the SQL script "summarize_ship_trips" to create this "ship_trip" table.
+
+  ### Using PostGreSQL COPY rather than iterating through chuncks using pandas
+
+  Using Pandas and iterating through 100000 rows at a time on a sample csv of 150 mb took ~2 mins.  By using copy to create a temp table and then selecting the relevant info to populate the ship_info and ship_position table, the total time was reduced to 25 seconds.
 
 
   ### Analyze Summarized Ship trips
