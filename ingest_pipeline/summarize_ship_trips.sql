@@ -43,8 +43,9 @@ FROM (
 -- create mmsi index on ship_trips
 CREATE INDEX ship_trips_mmsi_idx on ship_trips (mmsi);
 
-
-
+SELECT ST_MakeLine((pos.geog::geometry) ORDER BY pos.time) AS line
+ FROM ship_position as pos
+ WHERE mmsi = '367350750';
 
 -- SAMPLING PRACTICE
 -- clear table

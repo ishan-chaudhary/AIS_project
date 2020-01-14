@@ -23,12 +23,12 @@ import os
 
 #choose db.  this is used for connections throughout the script
 database = 'ais_test'
-print('Starting processing at: ', datetime.datetime.now().time())
+
 #%% Make and test conn and cursor
 conn = psycopg2.connect(host="localhost",database=database)
 c = conn.cursor()
 if c:
-    print('Connection is good.')
+    print('Connection to {} is good.'.format(database))
 c.close()
 
 
@@ -38,10 +38,15 @@ def drop_table(table):
     c.execute('drop table if exists {} cascade'.format(table))
     conn.commit()
     c.close()
-#%%
+#%% drop other tables
 drop_table('ship_info')
 drop_table('ship_position')
 drop_table('imported_ais')
+drop_table('ship_trips')
+
+#%% start processing
+first_tick = datetime.datetime.now()
+print('Starting processing at: ', first_tick.time())
 #%% create an imported_ais table to hold each file as its read in
 c = conn.cursor()
 c.execute("""CREATE TABLE imported_ais (
@@ -83,12 +88,16 @@ c.execute("""CREATE TABLE IF NOT EXISTS ship_position
 (
     mmsi text,
     time timestamp,
+    geog geography,
     lat numeric,
     lon numeric
 );""")
 conn.commit()
 
 c.execute("""CREATE INDEX ship_position_mmsi_idx on ship_position (mmsi);""")
+conn.commit()
+c.execute("""CREATE INDEX ship_position_geog_idx 
+          ON ship_position USING GIST (geog);""")
 conn.commit()
 c.close()
 #%% read in and parse the original file into new tables
@@ -98,8 +107,13 @@ def parse_ais_SQL(file_name):
     c.execute("""COPY imported_ais FROM '{}'
                 WITH (format csv, header);""".format(file_name))
     conn.commit()
-    c.execute("""INSERT INTO ship_position (mmsi, time, lat, lon)
-                SELECT mmsi, time, lat, lon FROM imported_ais;""")
+    c.execute("""INSERT INTO ship_position (mmsi, time, geog, lat, lon)
+                SELECT mmsi, 
+                time, 
+                ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
+                lat, 
+                lon 
+                FROM imported_ais;""")
     conn.commit()
     c.execute("""INSERT INTO ship_info (mmsi, ship_name, ship_type)
                 SELECT DISTINCT mmsi, ship_name, ship_type from imported_ais;""")
@@ -121,10 +135,16 @@ def dedupe_table(table):
 #%%
 source_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017/*.csv'
 #destination_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017_unzipped'
-file_name = '/Users/patrickmaus/Documents/projects/AIS_data/2017/AIS_2017_01_Zone09.csv'
+
+#for file_name in glob.glob(source_dir):
+#   print (file_name)
+
+
+file_name = '/Users/patrickmaus/Documents/projects/AIS_data/2017/AIS_2017_01_Zone10.csv'
+
 
 #%% populate the ship_position and ship_info table
-#for file_name in glob.glob(source_dir):
+
 tick = datetime.datetime.now()
 print('Starting parse_ais_SQL: ', file_name[-22:])
 
@@ -143,19 +163,6 @@ dedupe_table('ship_info')
 tock = datetime.datetime.now()
 lapse = tock - tick
 print('Time elapsed: ', lapse)
-#%% This function updates the geog, builds index on geog, and vaccums
-def update_geog():
-    c = conn.cursor()
-    c.execute("""ALTER TABLE ship_position 
-              ADD COLUMN geog geography (Point, 4326);""")
-    conn.commit()
-    c.execute("""UPDATE ship_position SET geog = ST_SetSRID(
-            ST_MakePoint(lon, lat), 4326);""")
-    conn.commit()
-    c.execute("""CREATE INDEX ship_position_geog_idx 
-              ON ship_position USING GIST (geog);""")
-    conn.commit()
-    c.close()
 
 #%% Populate ship_trips table from ship_postion table
 def make_ship_trips():
@@ -169,11 +176,12 @@ def make_ship_trips():
 		ST_Length(geography(line))/1000 AS line_length_km,
 		first_date,
 		last_date,
-		last_date - first_date as time_diff
+		last_date - first_date as time_diff,
+        line
         FROM (
                 SELECT pos.mmsi,
                 COUNT (pos.geog) as position_count,
-                ST_MakeLine(pos.geog ORDER BY pos.time) AS line,
+                ST_MakeLine((pos.geog::geometry) ORDER BY pos.time) AS line,
                 MIN (pos.time) as first_date,
                 MAX (pos.time) as last_date
                 FROM ship_position as pos
@@ -182,15 +190,6 @@ def make_ship_trips():
     c.execute("""CREATE INDEX ship_trips_mmsi_idx on ship_trips (mmsi);""")
     conn.commit()
     c.close()
-#%%
-tick = datetime.datetime.now()
-print('Starting update_geog', file_name[-22:])
-
-update_geog()
-
-tock = datetime.datetime.now()
-lapse = tock - tick
-print('Time elapsed: ', lapse)
 
 #%%
 tick = datetime.datetime.now()
@@ -202,6 +201,10 @@ tock = datetime.datetime.now()
 lapse = tock - tick
 print('Time elapsed: ', lapse)
 
+#%%
+last_tock = datetime.datetime.now()
+lapse = last_tock - first_tick
+print('Processing Done.  Total time elapsed: ', lapse)
 #%% Processing 
 #time_now = datetime.datetime.now()
 #notes = 'run with mmsi and 10 mil chunk size'
