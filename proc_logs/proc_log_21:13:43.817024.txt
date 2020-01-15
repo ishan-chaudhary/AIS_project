@@ -1,0 +1,9 @@
+Starting processing at: 21:13:43.817024 
+Starting function parse original AIS data 
+Time elapsed: 0:00:47.553805 
+Starting file AIS_2017_01_Zone09.csv at 21:13:43.838876 
+Time elapsed: 0:00:47.532745 
+Starting function parse original AIS data 
+Time elapsed: 0:03:07.064894 
+Starting file AIS_2017_01_Zone20.csv at 21:14:31.372120 
+Time elapsed: 0:02:19.510573 

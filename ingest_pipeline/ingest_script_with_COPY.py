@@ -24,13 +24,15 @@ import os
 #choose db.  this is used for connections throughout the script
 database = 'ais_test'
 
+###  
+
+
 #%% Make and test conn and cursor
 conn = psycopg2.connect(host="localhost",database=database)
 c = conn.cursor()
 if c:
     print('Connection to {} is good.'.format(database))
 c.close()
-
 
 #%% Drop tables if needed
 def drop_table(table):
@@ -43,15 +45,45 @@ drop_table('ship_info')
 drop_table('ship_position')
 drop_table('imported_ais')
 drop_table('ship_trips')
-
 #%% start processing
 first_tick = datetime.datetime.now()
-print('Starting processing at: ', first_tick.time())
+
+log_name = '/Users/patrickmaus/Documents/projects/AIS_project/proc_logs/proc_log_{}.txt'.format(first_tick.time())
+log = open(log_name, 'a+')
+log.write('Starting processing at: {} \n'.format(first_tick.time()))
+log.close()
+print('Starting processing at: ', first_tick)
+
+#%% create a function to print and log milestones
+def function_tracker(function, function_name, 
+                     tick_now = datetime.datetime.now()):
+    print('Starting function {}'.format(function_name))
+    function
+    tock_now = datetime.datetime.now()
+    lapse = tock_now - tick_now
+    
+    log = open(log_name, 'a+')
+    log.write('Starting function {} \n'.format(function_name))
+    log.write('Time elapsed: {} \n'.format(lapse))
+    log.close()
+    
+    print('Time elapsed: ', lapse)
+#%% dedupe table
+def dedupe_table(table):
+    c = conn.cursor()
+    c.execute("""CREATE TABLE tmp as 
+          (SELECT * from (SELECT DISTINCT * FROM {}) as t);""".format(table))
+    c.execute("""DELETE from {};""".format(table))
+    c.execute("""INSERT INTO {} SELECT * from tmp;""".format(table))
+    c.execute("""DROP TABLE tmp;""")
+    conn.commit()
+    c.close()
+
 #%% create an imported_ais table to hold each file as its read in
 c = conn.cursor()
 c.execute("""CREATE TABLE imported_ais (
   	mmsi 			text,
-	time			timestamp,
+	time		timestamp,
 	lat				numeric,
 	lon				numeric,
 	sog				varchar,
@@ -100,8 +132,25 @@ c.execute("""CREATE INDEX ship_position_geog_idx
           ON ship_position USING GIST (geog);""")
 conn.commit()
 c.close()
-#%% read in and parse the original file into new tables
 
+#%% create WPI table funtion
+def make_wpi(wpi_csv_path=wpi_csv_path):
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS wpi (
+        	index_no		int,
+        	region_no	int,
+        	port_name	text,
+        	country		text,
+        	latitude		numeric,
+        	longitude	numeric,
+        	geog			geography,
+        	geom			geometry);""")
+    conn.commit()
+    c.execute("""COPY wpi FROM '{}'
+        WITH (format csv, header);""".format(wpi_csv_path))
+    conn.commit()
+    c.close()
+#%% read in and parse the original file into new tables
 def parse_ais_SQL(file_name):
     c = conn.cursor()
     c.execute("""COPY imported_ais FROM '{}'
@@ -121,48 +170,6 @@ def parse_ais_SQL(file_name):
     c.execute("""DELETE FROM imported_ais""")
     conn.commit()
     c.close()
-    
-#%% dedupe table
-def dedupe_table(table):
-    c = conn.cursor()
-    c.execute("""CREATE TABLE tmp as 
-          (SELECT * from (SELECT DISTINCT * FROM {}) as t);""".format(table))
-    c.execute("""DELETE from {};""".format(table))
-    c.execute("""INSERT INTO {} SELECT * from tmp;""".format(table))
-    c.execute("""DROP TABLE tmp;""")
-    conn.commit()
-    c.close()
-#%%
-source_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017/*.csv'
-#destination_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017_unzipped'
-
-#for file_name in glob.glob(source_dir):
-#   print (file_name)
-
-
-file_name = '/Users/patrickmaus/Documents/projects/AIS_data/2017/AIS_2017_01_Zone10.csv'
-
-
-#%% populate the ship_position and ship_info table
-
-tick = datetime.datetime.now()
-print('Starting parse_ais_SQL: ', file_name[-22:])
-
-parse_ais_SQL(file_name)
-
-tock = datetime.datetime.now()
-lapse = tock - tick
-print('Time elapsed: ', lapse)
-
-#%%
-tick = datetime.datetime.now()
-print('Starting dedupe_table(ship_info): ', file_name[-22:])
-
-dedupe_table('ship_info')
-
-tock = datetime.datetime.now()
-lapse = tock - tick
-print('Time elapsed: ', lapse)
 
 #%% Populate ship_trips table from ship_postion table
 def make_ship_trips():
@@ -191,33 +198,36 @@ def make_ship_trips():
     conn.commit()
     c.close()
 
-#%%
-tick = datetime.datetime.now()
-print('Starting make_ship_trips: ', file_name[-22:])
+#%% run all the functions using the function tracker
+    
+source_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017/*.csv'
+wpi_csv_path = '/Users/patrickmaus/Documents/projects/AIS_project/WPI_data/wpi_clean.csv'
 
-make_ship_trips()
+#file_name = '/Users/patrickmaus/Documents/projects/AIS_data/2017/AIS_2017_01_Zone09.csv'
 
-tock = datetime.datetime.now()
-lapse = tock - tick
-print('Time elapsed: ', lapse)
+for file_name in glob.glob(source_dir):
+   tick = datetime.datetime.now()
+   print ('Started file {} at {} \n'.format(file_name[-22:], tick.time()))
+   
+   function_tracker(parse_ais_SQL(file_name), 'parse original AIS data')
+   
+#   tock = datetime.datetime.now()
+#   lapse = tock - tick
+#   print ('Time elapsed: {} \n'.format(lapse))
+   
+   log = open(log_name, 'a+')
+   log.write('Starting file {} at {} \n'.format(file_name[-22:], tick.time()))
+#   log.write('Time elapsed: {} \n'.format(lapse))
+   log.close()
+   
+function_tracker(dedupe_table('ship_info'), 'dedupe ship_info')
+function_tracker(make_ship_trips(), 'make_ship_trips')  
+function_tracker(make_wpi(wpi_csv_path), 'make_wpi')
 
 #%%
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
-#%% Processing 
-#time_now = datetime.datetime.now()
-#notes = 'run with mmsi and 10 mil chunk size'
-#log = open('/Users/patrickmaus/Documents/projects/AIS_project/proc_log.txt', 'a+')
-#log.write("""At {}, a run occurred with: {}.  It started at {}, finished at {},
-#          for a total run time of {}.\n\n""".format(time_now, notes, tick, tock, lapse))
-#log.close()
-
-# Notes
-    # Create a processing file to record start and stop times for each run.
-    # Add filters to just get zones 14 through 20 so dont have to manually delete
-    # add option for number of months to ingest so dont have to manually delete
-    # add indexes
 
 #%% v2 for zipped files 
 #source_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017/*.zip'
@@ -236,3 +246,4 @@ print('Processing Done.  Total time elapsed: ', lapse)
 #
 #
 
+#destination_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017_unzipped'
