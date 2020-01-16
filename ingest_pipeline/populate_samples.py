@@ -5,41 +5,58 @@ Created on Fri Dec 20 22:06:44 2019
 
 @author: patrickmaus
 """
-
 import psycopg2
 import pandas as pd
 
-#%% Establish connection and test
-conn = psycopg2.connect(host="localhost",database="ais_data")
+#choose db.  this is used for connections throughout the script
+database = 'ais_test'
+
+#%% Make and test conn and cursor
+conn = psycopg2.connect(host="localhost",database=database)
 c = conn.cursor()
 if c:
-    print('Connection is good.')
+    print('Connection to {} is good.'.format(database))
+else:
+    print('Error connecting.')
 c.close()
-#%% Select random samples
-mmsi_sample = pd.read_csv('/Users/patrickmaus/Documents/projects/AIS_project/sample_mmsi.csv')
 
-#%% make sample table
-c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS ship_position_sample
-(  
-    mmsi text,
-    time timestamp,
-    lat numeric,
-    lon numeric,
-    point_geog geometry
-);""")
-conn.commit()
-c.close()
-#%% Select all data for each mmsi and make a new table with sample data
-for m in mmsi_sample['mmsi'].to_list():
-    
-    print('Getting records for MMSI {}...'.format(str(m)))
+#%% Function for executing SQL
+def execute_sql(SQL):
     c = conn.cursor()
-    c.execute("""insert into ship_position_sample
-              select * from ship_position 
-              where mmsi = '{}'""".format(str(m)))
+    c.execute(SQL)
     conn.commit()
     c.close()
-    print('{} added'.format(str(m)))
+#%% Select random samples
+mmsi_sample = pd.read_csv('/Users/patrickmaus/Documents/projects/AIS_project/ingest_pipeline/sample_mmsi.csv')
+mmsi_list = mmsi_sample['mmsi'].astype('str').to_list()
+mmsi_tuple = tuple(mmsi_list)
 
+#%% make ship_trips_sample table
 
+c = conn.cursor()
+c.execute("""CREATE TABLE ship_trips_sample AS
+          SELECT * FROM ship_trips WHERE mmsi IN %s""", (mmsi_tuple,))
+conn.commit()
+c.close()
+
+#%% male ship_position_sample table
+c = conn.cursor()
+c.execute("""CREATE TABLE ship_position_sample AS
+          SELECT * FROM ship_position WHERE mmsi IN %s""", (mmsi_tuple,))
+conn.commit()
+c.close()
+
+#%% Make indices
+c = conn.cursor()
+
+c.execute("""CREATE INDEX ship_position_sample_mmsi_idx on 
+          ship_position_sample (mmsi);""")
+conn.commit()
+c.execute("""CREATE INDEX ship_position_sample_geog_idx 
+          ON ship_position_sample USING GIST (geog);""")
+conn.commit()
+c.execute("""CREATE INDEX ship_trips_sample_mmsi_idx 
+          on ship_trips_sample (mmsi);""")
+conn.commit()
+
+c.close()

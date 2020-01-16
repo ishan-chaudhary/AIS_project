@@ -7,3 +7,37 @@ Starting function parse original AIS data
 Time elapsed: 0:03:07.064894 
 Starting file AIS_2017_01_Zone20.csv at 21:14:31.372120 
 Time elapsed: 0:02:19.510573 
+Starting function parse original AIS data 
+Time elapsed: 0:31:49.865338 
+Starting file AIS_2017_01_Zone18.csv at 21:16:50.882953 
+Time elapsed: 0:28:42.800539 
+Starting function parse original AIS data 
+Time elapsed: 0:40:39.812998 
+Starting file AIS_2017_01_Zone19.csv at 21:45:33.683791 
+Time elapsed: 0:08:49.948079 
+Starting function parse original AIS data 
+Time elapsed: 0:47:26.051997 
+Starting file AIS_2017_01_Zone14.csv at 21:54:23.632320 
+Time elapsed: 0:06:46.238721 
+Starting function parse original AIS data 
+Time elapsed: 1:38:42.847161 
+Starting file AIS_2017_01_Zone17.csv at 22:01:09.871534 
+Time elapsed: 0:51:16.796601 
+Starting function parse original AIS data 
+Time elapsed: 2:22:58.395265 
+Starting file AIS_2017_01_Zone16.csv at 22:52:26.668598 
+Time elapsed: 0:44:15.546128 
+Starting function parse original AIS data 
+Time elapsed: 2:37:22.338942 
+Starting file AIS_2017_01_Zone11.csv at 23:36:42.215081 
+Time elapsed: 0:14:23.943211 
+Starting function parse original AIS data 
+Time elapsed: 3:20:15.976892 
+Starting file AIS_2017_01_Zone10.csv at 23:51:06.158854 
+Time elapsed: 0:42:53.636560 
+Starting function dedupe ship_info 
+Time elapsed: 3:20:16.537962 
+Starting function make_ship_trips 
+Time elapsed: 3:48:56.793826 
+Starting function make_wpi 
+Time elapsed: 3:48:56.832215 

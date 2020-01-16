@@ -147,6 +147,9 @@ def make_wpi(wpi_csv_path=wpi_csv_path):
         	longitude	numeric,
         	geog			geography,
         	geom			geometry);""")
+    c.execute("""CREATE INDEX wpi_geog_idx
+              ON wpi
+              USING GIST (geog);"""
     conn.commit()
     c.execute("""COPY wpi FROM '{}'
         WITH (format csv, header);""".format(wpi_csv_path))

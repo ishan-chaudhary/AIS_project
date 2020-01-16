@@ -29,7 +29,7 @@ CREATE INDEX ship_test_geog_idx
 
 --Spatial joins with geog points
 CREATE TABLE port_activity_sample AS
-SELECT s.mmsi, s.time, wpi.port_name, wpi.id as port_id
+SELECT s.mmsi, s.time, wpi.port_name, wpi.index_no as port_id
 FROM ship_position_sample AS s
 JOIN wpi 
 ON ST_DWithin(s.geog, wpi.geog, 2000);
@@ -56,5 +56,47 @@ select mmsi, min(time), max(time), port_name, port_id
 from port_activity 
 group by(mmsi,port_id, port_name) 
 order by (mmsi, min(time));
+
+-- try merging back into the original table ship_position_sample
+SELECT * FROM
+(SELECT s.mmsi, s.time, wpi.port_name, wpi.index_no as port_id
+FROM ship_position_sample AS s
+JOIN wpi 
+ON ST_DWithin(s.geog, wpi.geog, 2000)) as foo
+
+SELECT pos.mmsi, pos.time, pos.geog, pos.lat, pos.lon, 
+pa.port_name, port_id
+FROM ship_position_sample as pos 
+LEFT OUTER JOIN
+port_activity_sample as pa
+ON (pa.mmsi = pos.mmsi) AND
+(pa.time = pos.time)
+
+
+
+
+
+CREATE TABLE port_activity_sample AS
+-- We need all of the original fields from ship_position as well 
+-- as the port name and port id.  
+		SELECT pos.mmsi, pos.time, pa.port_name, pa.port_id, pos.geog
+		FROM 
+		ship_position_sample as pos 
+		LEFT JOIN
+-- this query returns all ship positions within 2000 m of a port
+			(SELECT s.mmsi, s.time, wpi.port_name, wpi.index_no as port_id
+			FROM ship_position_sample AS s
+			JOIN wpi 
+			ON ST_DWithin(s.geog, wpi.geog, 2000))
+		as pa
+-- we then joint the port activity (pa) with all of the ship positions
+-- where the mmsi and time are equal
+		ON (pa.mmsi = pos.mmsi) AND
+		(pa.time = pos.time) 
+		ORDER BY (pos.mmsi, pos.time)
+
+
+
+
 
 
