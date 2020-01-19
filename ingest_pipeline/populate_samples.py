@@ -60,3 +60,16 @@ c.execute("""CREATE INDEX ship_trips_sample_mmsi_idx
 conn.commit()
 
 c.close()
+
+#%% dedupe table
+def dedupe_table(table):
+    c = conn.cursor()
+    c.execute("""CREATE TABLE tmp as 
+          (SELECT * from (SELECT DISTINCT * FROM {}) as t);""".format(table))
+    c.execute("""DELETE from {};""".format(table))
+    c.execute("""INSERT INTO {} SELECT * from tmp;""".format(table))
+    c.execute("""DROP TABLE tmp;""")
+    conn.commit()
+    c.close()
+#%%
+dedupe_table('ship_position_sample')

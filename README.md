@@ -63,11 +63,23 @@ The project has three major phases.
   ### Create Samples for Further analysis
   Python script "populate_sample" takes the csv output of the sample MMSIs from the Jupyter Notebook "ships_trips_analysis" and adds all positions from the "ship_position" table to a new "ship_position_sample" table.  It also makes a "ship_trips_sample" table from the full "ship_trips" table.
 
+  ### Port Activity
+  Creates a table that includes all of a ship's position when the ship's positions are within X meters of a known port.  This table has all of these positions labeled with that port. Then
+
+  The WPI dataset has  duplicate port locations.  Specifically, the exact same geos are used twice by two different named and indexed ports 13 times.  I naively dropped duplicates on the lat and lon columns to resolve.
+
+  Still to do:
+  - rejoin this back to the main tables since we want to have a port for each position as well as the blanks.  Making a new table is fine for the sample data, but not for the full data.
+
+
+  ### Status as of 18 January 2019:
+  Using a sample of 200 mmsis, we went from 135 million positions in all of January to a total of 2,155,696 positions.  This reduces to 1003 nodes. 
+
   ### Lessons Learned
   #### Using PostGreSQL COPY rather than iterating through chunks using pandas
   Using Pandas and iterating through 100000 rows at a time on a sample csv of 150 mb took ~2 mins.  By using copy to create a temp table and then selecting the relevant info to populate the ship_info and ship_position table, the total time was reduced to 25 seconds.
 
-  ### #A note on Spatial Indices
+  ### A note on Spatial Indices
   I first failed to create spatial indices at all.  This led to a 2 minute 45 second spatial join between a table with 9265 positions and the WPI table with 3630 ports.  By adding a spatial index with the below syntax to both tables, the query then took only 124 msec.  Running the same query against over 2 million rows in the sample data took 2.6 seconds.
 
   CREATE INDEX wpi_geog_idx
@@ -90,8 +102,13 @@ The project has three major phases.
 
   ## Network Analysis
 
-  First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.  
+  First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.
+
+  The python script "port_activity" identifies all positions within a certain distance of a port (now set for 2000m).  It then finds the closest port if more than one is returned, and joins the closes port back to the position data as a new table.  Right now this is one large query and needs to be modified to insert the new columns for port_id and port_name back into the original data rather than make a new table.
+
+  The Python script "network_building" iterates through a table with ship position and determines an origin and destination for each connection between two ports.  These can be imported into networkx as edges.  The script also captures departure time,  arrival time, and total positions between the two ports as edge attributes.  These can be used to narrow down true port-to-port trips and minimize times when a ship repeatedly jumps back and forth between ports in a short number of positions or narrow time window.  All of this data is written to a table in the database.
 
 
   - I also need to add a conditional that looks for a minimum of X time at each port to prevent a ship from traveling by numerous ports to be listed as in port.
-  - Also need to catch ships departing a port and then returning to the same.  Right now that is missed and treated all as one port visit.
+  - Refactor not to use pandas if proved to be non-preformant
+  - Break code block into functions

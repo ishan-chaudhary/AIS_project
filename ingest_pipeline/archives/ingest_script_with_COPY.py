@@ -225,6 +225,9 @@ function_tracker(dedupe_table('ship_info'), 'dedupe ship_info')
 function_tracker(make_ship_trips(), 'make_ship_trips')  
 function_tracker(make_wpi(wpi_csv_path), 'make_wpi')
 
+
+#%%
+dedupe_table('ship_position')
 #%%
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
