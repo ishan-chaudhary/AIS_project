@@ -73,7 +73,7 @@ The project has three major phases.
 
 
   ### Status as of 18 January 2019:
-  Using a sample of 200 mmsis, we went from 135 million positions in all of January to a total of 2,155,696 positions.  This reduces to 1003 nodes. 
+  Using a sample of 200 mmsis, we went from 135 million positions in all of January to a total of 2,155,696 positions.  This reduces to 1003 nodes.
 
   ### Lessons Learned
   #### Using PostGreSQL COPY rather than iterating through chunks using pandas
@@ -99,6 +99,8 @@ The project has three major phases.
   Note, when we get there, we will have to look at how to represent time.  If we include it as a Z dimension, the scale will impact different clustering spaces.  Perhaps we can run the same clustering approaches with different time scales to show how it can impact the final clusters.
 
   Can I use labeled clusters of "ports" to identify the critical values for distance in time and space, and then apply those parameters against the rest of the data.
+  -Likely DBSCAN is the best implementation
+  -Would Gaussian mixture models successfully identify anamalous ship traffic?
 
   ## Network Analysis
 
