@@ -75,6 +75,11 @@ The project has three major phases.
   ### Status as of 18 January 2019:
   Using a sample of 200 mmsis, we went from 135 million positions in all of January to a total of 2,155,696 positions.  This reduces to 1003 nodes.
 
+  ### Table Summary
+  imported_ais --> ship_position --> ship_trips --> port_activity --> edges
+  
+
+
   ### Lessons Learned
   #### Using PostGreSQL COPY rather than iterating through chunks using pandas
   Using Pandas and iterating through 100000 rows at a time on a sample csv of 150 mb took ~2 mins.  By using copy to create a temp table and then selecting the relevant info to populate the ship_info and ship_position table, the total time was reduced to 25 seconds.
