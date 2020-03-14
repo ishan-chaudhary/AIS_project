@@ -4,3 +4,4 @@
 .DS_Store
 .DS_Store
 aws_connect.py
+aws_credentials.py
