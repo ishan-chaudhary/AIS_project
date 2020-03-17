@@ -77,7 +77,7 @@ The project has three major phases.
 
   ### Table Summary
   imported_ais --> ship_position --> ship_trips --> port_activity --> edges
-  
+
 
 
   ### Lessons Learned
@@ -101,11 +101,13 @@ The project has three major phases.
 
   ## Clustering
 
-  Note, when we get there, we will have to look at how to represent time.  If we include it as a Z dimension, the scale will impact different clustering spaces.  Perhaps we can run the same clustering approaches with different time scales to show how it can impact the final clusters.
+  Note, when we get there, we will have to look at how to represent time.  If we include it as a Z dimension, the scale will impact different clustering spaces.  Perhaps we can run the same clustering approaches with different time scales to show how it can impact the final clusters.  Or we could just ignore time entirely and cluster just based on spatial activity.
 
   Can I use labeled clusters of "ports" to identify the critical values for distance in time and space, and then apply those parameters against the rest of the data.
   -Likely DBSCAN is the best implementation
   -Would Gaussian mixture models successfully identify anamalous ship traffic?
+
+  So use DBSCAN to cluster individual ships, but it crashes local machine in sklearn.  Rebuilt code to work in PostGres and can now run locally or in the cloud.  We can run the clustering for each ship, and then cluster all the ports from all the ships to find final ports.  This may be less subject to drift over time.  Our hyperparametrs are only good for the volume of ships in the timeframe.  Say we had well-tuned parameters for a month of AIS data.  They would be far too low for a years worth of data, because 12 times the shipping activity is in the same area.  If we cluster the activity first and then cluster to find ports, its could be more resistent to walking.
 
   ## Network Analysis
 
