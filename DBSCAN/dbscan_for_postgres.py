@@ -15,24 +15,6 @@ from sklearn.cluster import DBSCAN
 from sklearn.neighbors import BallTree
 from sklearn.metrics.pairwise import haversine_distances
 
-#%%
-# get data
-df_full = pd.read_csv('dbscan_7_50.csv')
-df_full = df_full.rename({'clust':'clust_id'}, axis=1)
-#df_full.rename({'Unnamed: 0':'id'}, axis=1,inplace=True)
-
-# sample of one ship
-#df_rick = df_full[df_full['mmsi']==538090091].reset_index(drop=True)
-
-# make a df with just port activity
-#df_port_activity = df_full[df_full['port_id'] > 0]
-
-# get all the ports from the world port index
-ports_full = pd.read_csv('wpi.csv')
-ports = ports_full[['index_no','port_name','latitude','longitude']]
-ports = ports.rename(columns={'latitude':'lat','longitude':'lon'
-                              ,'index_no':'port_id'})
-
 #%% Make and test conn and cursor using psycopg, 
 # and create an engine using sql alchemy
 
@@ -49,9 +31,28 @@ def create_sql_alch_engine():
     user = 'patrickmaus'
     host = 'localhost'
     port = '5432'
+    database = 'ais_test'
     return create_engine('postgresql://{}@{}:{}/{}'.format(user, host, 
                                                            port, database))
-engine = create_sql_alch_engine()
+loc_engine = create_sql_alch_engine()
+
+#%%
+# get data
+df_results = pd.read_sql('dbscan_results_001_50', loc_engine, 
+                    columns=['id', 'lat','lon','clust_id'])
+
+#%%
+
+# make a df with just port activity
+df_port_activity = pd.read_sql('port_activity_sample_5k, loc_engine, 
+                    columns=['id', 'lat','lon','clust_id'])
+#%%
+# get all the ports from the world port index
+ports = pd.read_sql('wpi', loc_engine, columns=['index_no', 'port_name',
+                                                      'latitude','longitude'])
+ports = ports.rename(columns={'latitude':'lat','longitude':'lon'
+                              ,'index_no':'port_id'})
+
 
 #%% This function will be used to write results to the database
 def df_to_table_with_geom(df, name, eps, min_samples):
@@ -230,10 +231,12 @@ print('Starting distance calculations... ')
 df_centers = center_calc(df_full)
 
 df_centers.to_csv('centers_full_7_50.csv')
+
+df_centers
 #%%
 #Look at how many points are designated as near ports in the database
 print('Starting purity calculations...')        
-df_purity = purity_calc(df_results)
+df_purity = purity_calc(df_full)
 
 # roll up 
 df_rollup = pd.merge(df_purity, df_centers, how='left', on='clust_id')
@@ -244,7 +247,7 @@ tock = datetime.datetime.now()
 lapse = tock - tick
 print('All processing for this run complete.')
 print ('Time elapsed: {}'.format(lapse))
-
+#%%
 rollup_dict = {'eps_km':e, 'min_samples':s, 'time':lapse, 
                 'numb_obs':len(df_results), 
                 'average_cluster_count':np.mean(df_rollup['total_clust_count'].iloc[1:]),
@@ -261,4 +264,6 @@ print('Finished with round ', len(rollup_list))
 print('')
 #%%
 final_df = pd.DataFrame(rollup_list)
-final_df.to_csv('./rollups/summary.csv')
+final_df
+#%%
+df_rollup.to_csv('./rollups/summary_full_7_50_2k.csv')

@@ -109,6 +109,13 @@ The project has three major phases.
 
   So use DBSCAN to cluster individual ships, but it crashes local machine in sklearn.  Rebuilt code to work in PostGres and can now run locally or in the cloud.  We can run the clustering for each ship, and then cluster all the ports from all the ships to find final ports.  This may be less subject to drift over time.  Our hyperparametrs are only good for the volume of ships in the timeframe.  Say we had well-tuned parameters for a month of AIS data.  They would be far too low for a years worth of data, because 12 times the shipping activity is in the same area.  If we cluster the activity first and then cluster to find ports, its could be more resistent to walking.
 
+
+  Need to do:
+  -Set up ID index on ALL source tables
+  -come up with a schema for port distances and variabels for dbcan.  One table?  multiple?
+  -set up code to iterate through many different combos of eps, min_Samples and distance
+  -relook at metrics for roll up
+
   ## Network Analysis
 
   First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.

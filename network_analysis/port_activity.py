@@ -29,8 +29,9 @@ def execute_sql(SQL_string):
     c.close()
     
 #%% Create Port Activity table 
-destination_table = 'port_activity_full'
-source_table = 'ship_position'    
+destination_table = 'port_activity_sample_5k'
+source_table = 'ship_position_sample'    
+dist = '5000'
 
 port_activity_sample_sql = """
 -- This SQL query has two with selects and then a final select to create the new table.
@@ -42,7 +43,7 @@ WITH port_activity as (
 		(ST_Distance(s.geog, wpi.geog)) as dist_meters
 		FROM ship_position_sample AS s
 		JOIN wpi 
-		ON ST_DWithin(s.geog, wpi.geog, 2000)
+		ON ST_DWithin(s.geog, wpi.geog, {})
 -- Second with clause has a nested select that returns the closest port and groups by mmsi and time.
 -- This result is then joined back to the original data.
 ),  port_activity_reduced as (
@@ -64,7 +65,7 @@ WITH port_activity as (
 		port_activity_reduced as pa
 		ON (pa.mmsi = pos.mmsi) AND
 		(pa.time = pos.time) 
-		ORDER BY (pos.mmsi, pos.time);""".format(destination_table, source_table)
+		ORDER BY (pos.mmsi, pos.time);""".format(destination_table, dist, source_table)
 #%% Run query
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
