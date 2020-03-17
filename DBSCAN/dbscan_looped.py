@@ -18,11 +18,10 @@ from sklearn.metrics.pairwise import haversine_distances
 #%%
 # get data
 df_full = pd.read_csv('dbscan_data.csv')
-df_full.rename({'Unnamed: 0':'id'}, axis=1,inplace=True)
+#df_full.rename({'Unnamed: 0':'id'}, axis=1,inplace=True)
 
 # sample of one ship
 df_rick = df_full[df_full['mmsi']==538090091].reset_index(drop=True)
-
 
 # make a df with just port activity
 df_port_activity = df_full[df_full['port_id'] > 0]
