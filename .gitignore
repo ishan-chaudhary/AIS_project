@@ -5,3 +5,4 @@
 .DS_Store
 aws_connect.py
 aws_credentials.py
+__pycache__/aws_credentials.cpython-37.pyc
