@@ -39,7 +39,7 @@ c.execute("""CREATE TABLE ship_trips_sample AS
 conn.commit()
 c.close()
 
-#%% male ship_position_sample table
+#%% make ship_position_sample table
 c = conn.cursor()
 c.execute("""CREATE TABLE ship_position_sample AS
           SELECT * FROM ship_position WHERE mmsi IN %s""", (mmsi_tuple,))

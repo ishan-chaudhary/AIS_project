@@ -117,6 +117,7 @@ c.close()
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS ship_position
 (
+    id serial primary key,
     mmsi text,
     time timestamp,
     geog geography,
@@ -183,6 +184,7 @@ def make_ship_trips():
     conn.commit()
     c.execute("""CREATE TABLE ship_trips AS
     SELECT 
+        id,   
         mmsi,
         	position_count,
 		ST_Length(geography(line))/1000 AS line_length_km,

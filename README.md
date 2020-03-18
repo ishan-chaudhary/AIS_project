@@ -111,10 +111,7 @@ The project has three major phases.
 
 
   Need to do:
-  -Set up ID index on ALL source tables
-  -come up with a schema for port distances and variabels for dbcan.  One table?  multiple?
-  -set up code to iterate through many different combos of eps, min_Samples and distance
-  -relook at metrics for roll up
+
 
   ## Network Analysis
 

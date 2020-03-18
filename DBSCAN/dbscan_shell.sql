@@ -1,4 +1,4 @@
-ALTER TABLE ship_position_1000
+ALTER TABLE ship_position
 ADD COLUMN id SERIAL PRIMARY KEY;
 
 CREATE TABLE dbscan_results_001_50 AS 
@@ -8,6 +8,11 @@ FROM ship_position_sample as s
 JOIN port_activity_sample as port
 ON s.mmsi=port.mmsi AND
 s.time=port.time;
+
+CREATE TABLE dbscan_results_001_50 AS 
+SELECT id, lat, lon, 
+	ST_ClusterDBSCAN(Geometry(geog), eps := .001, minpoints := 50) over () as clust_id
+FROM ship_position_sample 
 
 
 ALTER TABLE db_scan_results_001_50
