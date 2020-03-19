@@ -1,6 +1,11 @@
 ALTER TABLE ship_position
 ADD COLUMN id SERIAL PRIMARY KEY;
 
+ALTER TABLE dbscan_results_all_results_rollup_15_2000
+ADD COLUMN params varchar;
+UPDATE dbscan_results_all_results_rollup_15_2000 
+SET params = ST_SetSRID(ST_MakePoint(lon, lat), 4326);
+
 CREATE TABLE dbscan_results_001_50 AS 
 SELECT s.id, s.mmsi, s.lat, s.lon, port.port_name, port.port_id, 
 	ST_ClusterDBSCAN(Geometry(geog), eps := .001, minpoints := 50) over () as clust_id

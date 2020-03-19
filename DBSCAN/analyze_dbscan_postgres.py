@@ -14,6 +14,9 @@ from sqlalchemy import create_engine
 from sklearn.neighbors import BallTree
 from sklearn.metrics.pairwise import haversine_distances
 
+import warnings
+warnings.filterwarnings('ignore')
+
 #%% Make and test conn and cursor using psycopg, 
 # and create an engine using sql alchemy
 
@@ -56,11 +59,7 @@ def df_to_table_with_geom(df, name, eps, min_samples, conn):
                 geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);""".format(new_table_name))
     conn.commit()
     c.close()
-#%%             
-def get_dbscan_results(table, engine):
-    df_results = pd.read_sql(table, engine, 
-                    columns=['id', 'lat','lon','clust_id'])
-    return df_results
+
 #%% center and purity calc functions
 def center_calc(df_results):
     """This function finds the center of a cluster from dbscan results,
@@ -108,11 +107,10 @@ def center_calc(df_results):
         
     haver_df = pd.DataFrame(haver_list)
     
-    try:
-        df_centers = pd.merge(df_centers, haver_df, how='left', on='clust_id')
-    except: 
-        print('no clusters.  error in center calcs.')
+    df_centers = pd.merge(df_centers, haver_df, how='left', on='clust_id')
+    
     return df_centers
+
 
 def purity_calc(df_results):
     """This function takes df_results and calculates how many points are near
@@ -170,11 +168,12 @@ ports = ports.rename(columns={'latitude':'lat','longitude':'lon',
 
 #%% Run this code when we generate our own df_results from dbscan
 rollup_list = []
+df_all_results = pd.DataFrame()
 epsilons = [2, 5, 7, 10, 15]
 samples = [50, 100, 250, 500, 1000, 2000]
 for e in epsilons:
     for s in samples:      
-            
+        print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={} """.format(str(e), str(s)))
         tick = datetime.datetime.now()
         
         table = 'dbscan_results_{}_{}'.format(str(e), str(s))
@@ -183,14 +182,21 @@ for e in epsilons:
         #determine the cluster center point, and find the distance to nearest port
         print('Starting distance calculations... ')
         df_centers = center_calc(df_results)
+        print('Finished distance calculations. ')
         
         #Look at how many points are designated as near ports in the database
         print('Starting purity calculations...')        
         df_purity = purity_calc(df_results)
+        print('Finished purity calculations. ')
 
         # roll up 
         df_rollup = pd.merge(df_purity, df_centers, how='left', on='clust_id')
+        df_rollup['eps_km'] = e
+        df_rollup['s'] = s
+        
+        
         df_rollup.to_csv('./rollups/rollup_full_{}_{}.csv'.format(str(e), str(s)))
+        df_all_results = df_all_results.append(df_rollup)
         
         #timekeeping
         tock = datetime.datetime.now()
@@ -215,6 +221,37 @@ for e in epsilons:
         print('Finished with round ', len(rollup_list))
         print('')
 #%%
-final_df = pd.DataFrame(rollup_list)
+final_df = pd.DataFrame(rollup_list).round(3)
 final_df.to_csv('./rollups/summary_full_5k.csv')
 
+#%%
+
+df_all_results['params'] = (df_all_results['eps_km'].astype(str) +
+                            '_'+df_all_results['s'].astype(str))
+#%%
+
+def df_to_table_with_geom(df, name, eps, min_samples, conn):
+    # add the eps and min_samples value to table name
+    new_table_name = ('dbscan_results_' + name + '_' + 
+                      str(eps).replace('.','_') + '_' + str(min_samples))
+    
+    # drop table if an old one exists
+    c = conn.cursor()
+    c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
+    conn.commit()
+    c.close()
+    # make a new table with the df
+    df.to_sql(new_table_name, loc_engine)
+    # add a geom column to the new table and populate it from the lat and lon columns
+    c = conn.cursor()
+    c.execute("""ALTER TABLE {} ADD COLUMN 
+                geom geometry(Point, 4326);""".format(new_table_name))
+    conn.commit()
+    c.execute("""UPDATE {} SET 
+                geom = ST_SetSRID(ST_MakePoint(average_lon, average_lat), 4326);""".format(new_table_name))
+    conn.commit()
+    c.close()
+
+
+   
+df_to_table_with_geom(df_all_results, 'all_results_rollup', e, s, loc_conn)

@@ -111,7 +111,7 @@ The project has three major phases.
 
 
   Need to do:
-
+  - on the purity analysis, need to compare when closest port == most strongly repersented port.
 
   ## Network Analysis
 
