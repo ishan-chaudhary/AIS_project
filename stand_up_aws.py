@@ -50,6 +50,7 @@ host = a_c.host
 port = '5432'
 database = 'aws_ais_clustering'
 password = a_c.password
+
 from sqlalchemy import create_engine
 
 aws_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(user, password, 
