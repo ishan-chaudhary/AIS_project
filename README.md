@@ -1,9 +1,9 @@
 # AIS_project
 
 This project's goals are to:
-- Gain experience building out data pipelines myself
+- Gain experience building out data pipelines for large, geospatial datasets myself
 - Learn more about PostGIS and QGIS
-- Better practice good software engineering practices in my data science projects
+- Practice good software engineering practices in my data science projects
 - Experiment with different ways of identifying and evaluating clusters in space and time
 - Translating dense spatial-temporal data into networks
 - Analyze network analysis, including machine learning for prediction
@@ -30,6 +30,26 @@ The project has three major phases.
   - QGIS
   - Spyder
 
+  Python Packages
+  - update all packages here
+
+  ## Background
+  Fueled by near universal adoption of smartphone technology across the developed world, the last few years have seen a renaissance in the capabilities of large-scale geospatial data exploitation and analysis.  Locational metadata from users can provide insights on traffic density and congestion, the current popularity of restaurants, stores or other places of interest, and even support analysis of pandemics like in 2020 (See Israel's use at https://www.nytimes.com/2020/03/16/world/middleeast/israel-coronavirus-cellphone-tracking.html, or Unacast's social distancing scoreboard at https://www.unacast.com/covid19/social-distancing-scoreboard).
+
+  The risk to personal privacy with this volume and precision of this data is significant, and therefore access to the data is extremely limited (See The New York Times excellent deep dive into this topic One Nation, Tracked at https://www.nytimes.com/interactive/2019/12/19/opinion/location-tracking-cell-phone.html).  I intend to use this AIS data as a proxy to develop expertise on building pipelines, conducting EDA, developing models, and extracting insights.  
+
+  I argue that this dataset is a good proxy for the type of location metadata being used today for several reasons:
+  - There is a unique identifier for each ship, which allows me to analyze one particular entity's pattern.  This is key for many approaches being used today on locational metadata as its a specific phone or devices movement from one area to another that is of interest (see Spring Breakers at a Florida beach returning across country during COVID-19 crisis https://twitter.com/TectonixGEO/status/1242628347034767361)
+  - The data is high volume.  Much like the curse of dimensionality, there can be too much of a good thing in data analysis.  The high volume of this location metadata is a core part of its strength, but complicates analysis.  
+  - Activity is varied.  In the AIS data, there are sailboats, container ships, tankers, fixed sites, and a number of other maritime entities going about their regular business.  This makes the data noisy, a reality likely common to most location datasets.
+
+  The AIS data is different from other location datasets of interest though in several key ways.  
+  - It is dramatically narrower in scope in that all activity is related to ships.  Despite the variety of ships involved, it is a much narrower slice of activity.
+  - It is spatially constrained to the maritime domain, simplifying some of the spatial analysis required.
+  - The data collection is limited to land-based coastal collection sites.  This leads to a non-continuous record of activity for many AIS devices, something less likely to occur in other location metadata.
+
+
+
   ## Data Ingest, Cleaning, and Analysis
 
   The AIS data is large.  January 2017 data fro the US is 25 gigabytes.  The entire year could be about 300 gigabytes.  There are two options here.  The first is to put it all in the cloud with all the raw data and cleaned tables.  The second is to  store all csvs as zipped files, process and clean he data in chunks to a database, and create a summary for every vessel in the data.  Then, we can sample the raw positions and conduct cluster analysis on those samples.  Armed with our summary analysis of the entire data, we can then ensure that our samples are repersentative of different patterns.
@@ -38,13 +58,12 @@ The project has three major phases.
 
   Current implementation (16 January 2019) uses a source directory as an input and iterates through all the csv files in that directory.  Future improvements can allow filtering based on month and zone.  Additionally, can eventually add a webscraper component.
 
-
   Still to do on ingest script:
   - Set up scrape from remote website
-  - set up filters for zones and months
+  - set up automatic filters for zones and months to
 
   ### Ingest pipelines
-  First we create a new database (in prod it is the "AIS_data" database)m and then build a Post GIS extension.  Then we run the python script "ingest_script_prod".  This script:
+  First we create a new database (in prod it is the "AIS_data" database) and then build a Post GIS extension.  Then we run the python script "ingest_script_prod".  This script:
 
   - Creates a connection to the db
   - Drops any existing tables using a custom 'drop_table' function.  (Note, in prod the actual calls are commented out for safety.)
@@ -55,7 +74,7 @@ The project has three major phases.
   - All activities are recorded to a processing log ("proc_log") with the date appended.  "function_tracker" function executes key functions, logs times, and prints updates to the console.
 
   ### Reducing Raw position data
-  Unfortunately we have to use the more dense point data rather than the lines.  Because there are sometimes gaps in coverage, a line will not follow the actual ships path and "jump".  If the line is near any port, it would trigger a false positive.  The "make_ship_trips" function in the ingest pipeline uses geometry in PostGIS to connect all positions per ship, but this is not accurate as the coverage is not consistent.
+  Unfortunately analysis against the entire corpus is difficult with limited compute.   However, we can reduce the raw positions of each ship into a line segment that connects each point together in the order of time.  Because there are sometimes gaps in coverage, a line will not follow the actual ships path and "jump".  The "make_ship_trips" function in the ingest pipeline uses geometry in PostGIS to connect all positions per ship, but this is not accurate as the coverage is not consistent.
 
   ### Analyze Summarized Ship trips
   Since we don't want to test all of our algorithm development against the entirety of the data, we need to select a sample of MMSI from the entire population to examine further.  The Jupyter Notebook "ships_trips_analysis" parses the ships_trips table and analyzes the fields.  We can use it to select a sample of MMSIs for further analysis.  The notebook builds several graphs and examines the summary of each MMSI's activity.  After filtering out MMSIs that don't travel far, have very few events, or travel around the globe in less than a month and are possible errors, the notebook exports a sample (250 now) to a csv file.  The notebook also writes the ship_trips sample to a new table, "ship_trips_sample" directly from the notebook using SQL Alchemy.
@@ -79,7 +98,6 @@ The project has three major phases.
   imported_ais --> ship_position --> ship_trips --> port_activity --> edges
 
 
-
   ### Lessons Learned
   #### Using PostGreSQL COPY rather than iterating through chunks using pandas
   Using Pandas and iterating through 100000 rows at a time on a sample csv of 150 mb took ~2 mins.  By using copy to create a temp table and then selecting the relevant info to populate the ship_info and ship_position table, the total time was reduced to 25 seconds.
@@ -99,7 +117,7 @@ The project has three major phases.
   Large numbers of points within a vector layer can severely impact rendering performance within QGIS.  Recommend using the "Set Layer Scale Visibility" to only show the points at a certain scale.  Currently I found a minimum of 1:100000 appropriate with no maximum.  Ship trips can have no scale visibility because they render much faster.
 
 
-  ## Clustering
+  # Clustering
 
   Note, when we get there, we will have to look at how to represent time.  If we include it as a Z dimension, the scale will impact different clustering spaces.  Perhaps we can run the same clustering approaches with different time scales to show how it can impact the final clusters.  Or we could just ignore time entirely and cluster just based on spatial activity.
 
@@ -113,7 +131,7 @@ The project has three major phases.
   Need to do:
   - on the purity analysis, need to compare when closest port == most strongly repersented port.
 
-  ## Network Analysis
+  # Network Analysis
 
   First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.
 
