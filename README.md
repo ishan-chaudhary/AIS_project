@@ -12,6 +12,7 @@ The project has three major phases.
   1. Data ingest, cleaning, and analysis.
   2. Cluster creation and evaluation.
   3. Network analysis and prediction.
+  4. Timeseries analysis and prediction.
 
   Each phase has multiple individual projects.  This readme will try to document the project and track development.
 
@@ -130,6 +131,9 @@ The project has three major phases.
 
   Need to do:
   - on the purity analysis, need to compare when closest port == most strongly repersented port.
+  - what is the proporiton of None as port?
+  - filter out points that are far from known ports (activity on mississippi river)
+  - add column for composition, ie how many unique mmsis are in each cluster.  penalize singletons.
 
   # Network Analysis
 
