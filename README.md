@@ -34,24 +34,7 @@ The project has three major phases.
   Python Packages
   - update all packages here
 
-  ## Background
-  Fueled by near universal adoption of smartphone technology across the developed world, the last few years have seen a renaissance in the capabilities of large-scale geospatial data exploitation and analysis.  Locational metadata from users can provide insights on traffic density and congestion, the current popularity of restaurants, stores or other places of interest, and even support analysis of pandemics like in 2020 (See Israel's use at https://www.nytimes.com/2020/03/16/world/middleeast/israel-coronavirus-cellphone-tracking.html, or Unacast's social distancing scoreboard at https://www.unacast.com/covid19/social-distancing-scoreboard).
-
-  The risk to personal privacy with this volume and precision of this data is significant, and therefore access to the data is extremely limited (See The New York Times excellent deep dive into this topic One Nation, Tracked at https://www.nytimes.com/interactive/2019/12/19/opinion/location-tracking-cell-phone.html).  I intend to use this AIS data as a proxy to develop expertise on building pipelines, conducting EDA, developing models, and extracting insights.  
-
-  I argue that this dataset is a good proxy for the type of location metadata being used today for several reasons:
-  - There is a unique identifier for each ship, which allows me to analyze one particular entity's pattern.  This is key for many approaches being used today on locational metadata as its a specific phone or devices movement from one area to another that is of interest (see Spring Breakers at a Florida beach returning across country during COVID-19 crisis https://twitter.com/TectonixGEO/status/1242628347034767361)
-  - The data is high volume.  Much like the curse of dimensionality, there can be too much of a good thing in data analysis.  The high volume of this location metadata is a core part of its strength, but complicates analysis.  
-  - Activity is varied.  In the AIS data, there are sailboats, container ships, tankers, fixed sites, and a number of other maritime entities going about their regular business.  This makes the data noisy, a reality likely common to most location datasets.
-
-  The AIS data is different from other location datasets of interest though in several key ways.  
-  - It is dramatically narrower in scope in that all activity is related to ships.  Despite the variety of ships involved, it is a much narrower slice of activity.
-  - It is spatially constrained to the maritime domain, simplifying some of the spatial analysis required.
-  - The data collection is limited to land-based coastal collection sites.  This leads to a non-continuous record of activity for many AIS devices, something less likely to occur in other location metadata.
-
-
-
-  ## Data Ingest, Cleaning, and Analysis
+    ## Data Ingest, Cleaning, and Analysis
 
   The AIS data is large.  January 2017 data fro the US is 25 gigabytes.  The entire year could be about 300 gigabytes.  There are two options here.  The first is to put it all in the cloud with all the raw data and cleaned tables.  The second is to  store all csvs as zipped files, process and clean he data in chunks to a database, and create a summary for every vessel in the data.  Then, we can sample the raw positions and conduct cluster analysis on those samples.  Armed with our summary analysis of the entire data, we can then ensure that our samples are repersentative of different patterns.
 
@@ -131,9 +114,9 @@ The project has three major phases.
 
   Need to do:
   - on the purity analysis, need to compare when closest port == most strongly repersented port.
-  - what is the proporiton of None as port?
   - filter out points that are far from known ports (activity on mississippi river)
   - add column for composition, ie how many unique mmsis are in each cluster.  penalize singletons.
+  - cluster max width
 
   # Network Analysis
 
