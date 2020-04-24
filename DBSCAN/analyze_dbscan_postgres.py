@@ -266,14 +266,23 @@ for e in epsilons:
         rollup_dict = {'eps_km':e, 'min_samples':s, 'time':lapse, 
                         'numb_obs':len(df_rollup), 
                         'average_cluster_count':np.mean(df_rollup['total_clust_count']),
+                        # the proporition of ports with NONE.  a higher proportion suggests more false alarms.
+                        'prop_where_NONE_has_most_points': df_rollup['port_name_with_most_points'].value_counts()['NONE']/len(df_rollup),
+                        # if this is less than one, means more than one port is near this cluster.
                         'average_ports_per_cluster':np.mean(df_rollup['counts_per_port']),
-                        'average_points_per_port':np.mean(df_rollup['counts_at_port']),
+                        'average_counts_per_port':np.mean(df_rollup['counts_at_port']),
+                        
                         'average_prop_per_port':np.mean(df_rollup['proportion_near_top_port']),
+
                         'average_nearest_port_from_center':np.mean(df_rollup['nearest_port_dist']),
                         'average_cluster_density':np.mean(df_rollup['average_dist_from_center']),
                         'numb_clusters':len(np.unique(df_rollup['clust_id'])),
                         'ports_with_most_points':df_rollup['port_name_with_most_points'].to_list(),
                         'average_top_mmsi_prop':np.mean(df_rollup['top_mmsi_prop']),
+                        # the proportion where the top mmsi in a cluster is more than 95% of all points.  
+                        # more hetrogenous clusters (less pure) could be helpful in idenitfying areas where many
+                        # ships are present.
+                        'prop_were_top_mmsi >95%': len(df_rollup[df_rollup['top_mmsi_prop']>.95])/len(df_rollup),
                         'average_mmsi_per_clust':np.mean(df_rollup['mmsi_per_clust'])}
        
         rollup_list.append(rollup_dict)
@@ -285,6 +294,30 @@ for e in epsilons:
 #%%
 final_df = pd.DataFrame(rollup_list).round(3)
 final_df.to_csv(path+'summary_5k.csv')
+
+
+#%%
+
+value = 'average_cluster_count'
+
+X = final_df['eps_km']
+Y = final_df['min_samples']
+Z = final_df[value]
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+fig = plt.figure(figsize=(8,6))
+ax = fig.add_subplot(111, projection='3d')
+
+
+ax.scatter(X, Y, Z, c='r', marker='o')
+
+ax.set_xlabel('eps_km')
+ax.set_ylabel('min_samples')
+ax.set_zlabel(value)
+plt.title('DBSCAN Metrics Evaluation for {}'.format(value))
+
+ax.view_init(30, 160)
 
 #%%
 

@@ -14,7 +14,6 @@ import psycopg2
 
 #%%
 def postgres_dbscan(source_table, eps_km, min_samples, conn):
-    
     #this formulation will yield epsilon based on km desired
     kms_per_radian = 6371.0088
     eps = eps_km / kms_per_radian
@@ -28,7 +27,8 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
     conn.commit()
     c.close()
     
-    print("""Starting processing on DBSCAN with eps_km={} and min_samples={} """.format(str(eps_km), str(min_samples)))
+    print("""Starting processing on DBSCAN with eps_km={} and 
+          min_samples={} """.format(str(eps_km), str(min_samples)))
     
     dbscan_sql = """CREATE TABLE {} AS
     SELECT id, lat, lon, 
