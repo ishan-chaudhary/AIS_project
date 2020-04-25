@@ -1,4 +1,5 @@
-
+.ipynb_checkpoints
+.Rhistory
 *.csv
 .DS_Store
 .DS_Store
@@ -11,3 +12,4 @@ network_analysis/__pycache__/aws_credentials.cpython-37.pyc
 DBSCAN/report/ML1 Report.docx
 *.pptx
 *.docx
+.DS_Store
