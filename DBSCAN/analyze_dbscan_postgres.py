@@ -265,7 +265,19 @@ for e in epsilons:
         print ('Time elapsed: {}'.format(lapse))
     
         rollup_dict = {'eps_km':e, 'min_samples':s, 'time':lapse,
+                        # number of clusters in the run
+                        'numb_clusters':len(np.unique(df_rollup['clust_id'])),
+                        # average positions per each cluster in each run
                         'average_cluster_count':np.mean(df_rollup['total_clust_count']),
+                        
+                        # distance metrics
+                        # closest port.  Closer the better.
+                        'average_nearest_port_from_center':np.mean(df_rollup['nearest_port_dist']),
+                        # average and max distance from cluster center.
+                        'average_dist_from_center':np.mean(df_rollup['average_dist_from_center']),
+                        'average_max_dist_from_center':np.mean(df_rollup['max_dist_from_center']),
+                        
+                        # purity metrics
                         # the proporition of ports with NONE.  a higher proportion suggests more false alarms.
                         'prop_where_NONE_has_most_points': df_rollup['port_name_with_most_points'].value_counts()['NONE']/len(df_rollup),
                         # if this is less than one, means more than one port is near this cluster.
@@ -274,21 +286,16 @@ for e in epsilons:
                         'average_counts_per_port':np.mean(df_rollup['counts_at_port']), 
                         # proportion near top port.  Closer to 1, more homogenous.
                         'average_prop_per_port':np.mean(df_rollup['proportion_near_top_port']),
-                        # closest port.  Closer the better.
-                        'average_nearest_port_from_center':np.mean(df_rollup['nearest_port_dist']),
-                        # average and max distance from cluster center.
-                        'average_dist_from_center':np.mean(df_rollup['average_dist_from_center']),
-                        'average_max_dist_from_center':np.mean(df_rollup['max_dist_from_center']),
                         
-                        'numb_clusters':len(np.unique(df_rollup['clust_id'])),
-                        'ports_with_most_points':df_rollup['port_name_with_most_points'].to_list(),
+                        # composition metrics
                         # the average proportion of the positions in a clusters made by top mmsi.
-                        # higher indicates homogenity.
+                        # higher indicate homogenity.
                         'average_top_mmsi_prop':np.mean(df_rollup['top_mmsi_prop']),
                         # the proportion where the top mmsi in a cluster is more than 95% of all points.  
                         # more hetrogenous clusters (less pure) could be helpful in idenitfying areas where many
                         # ships are present.
                         'prop_were_top_mmsi >95%': len(df_rollup[df_rollup['top_mmsi_prop']>.95])/len(df_rollup),
+                        # average number of mmsis per each cluster per run
                         'average_mmsi_per_clust':np.mean(df_rollup['mmsi_per_clust'])}
        
         rollup_list.append(rollup_dict)
@@ -301,31 +308,39 @@ for e in epsilons:
 final_df = pd.DataFrame(rollup_list).round(3)
 final_df.to_csv(path+'summary_5k.csv')
 
-
-#%%
-
-value = 'average_cluster_count'
-
-X = final_df['eps_km']
-Y = final_df['min_samples']
-Z = final_df[value]
+#%% use this to reload data if needed
+#path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/2020-04-24/'
+#final_df = pd.read_csv(path+'summary_5k.csv')
+#%% build some scatterplots
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+def scatter_3d(value, df, highlight=None):
+    final_df = df
+    X = final_df['eps_km']
+    Y = final_df['min_samples']
+    Z = final_df[value]
 
-fig = plt.figure(figsize=(8,6))
-ax = fig.add_subplot(111, projection='3d')
-
-
-ax.scatter(X, Y, Z, c='r', marker='o')
-
-ax.set_xlabel('eps_km')
-ax.set_ylabel('min_samples')
-ax.set_zlabel(value)
-plt.title('DBSCAN Metrics Evaluation for {}'.format(value))
-
-ax.view_init(30, 160)
-
+    
+    fig = plt.figure(figsize=(8,6))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    if highlight:
+        ax.scatter(X[np.arange(len(X))!=highlight], Y[np.arange(len(Y))!=highlight], 
+                    Z[np.arange(len(Z))!=highlight], c='r', marker='o')
+        ax.scatter(X[highlight], Y[highlight], Z[highlight], c='black', marker='D')
+    else:
+        ax.scatter(X, Y, Z, c='r', marker='o')
+        
+    ax.set_xlabel('eps_km')
+    ax.set_ylabel('min_samples')
+    ax.set_zlabel(value)
+    plt.title('DBSCAN Metrics Evaluation for {}'.format(value))
+    ax.view_init(30, 160)
 #%%
+key_features = ['numb_clusters','prop_where_NONE_has_most_points', 
+                'average_mmsi_per_clust', 'average_top_mmsi_prop']
 
-df_all_results['params'] = (df_all_results['eps_km'].astype(str) +
-                            '_'+df_all_results['s'].astype(str))
+for f in key_features:
+    scatter_3d(f, final_df)
+
+
