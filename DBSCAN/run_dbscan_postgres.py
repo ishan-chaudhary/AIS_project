@@ -14,6 +14,7 @@ import psycopg2
 
 #%%
 def postgres_dbscan(source_table, eps_km, min_samples, conn):
+    
     #this formulation will yield epsilon based on km desired
     kms_per_radian = 6371.0088
     eps = eps_km / kms_per_radian
@@ -85,7 +86,7 @@ for e in epsilons:
     for s in samples:      
             
         tick = datetime.datetime.now()
-        
+        # pass the epsilon in km.  the function will convert it to radians
         postgres_dbscan('ship_position_sample', e, s, aws_conn)
         
         #timekeeping
