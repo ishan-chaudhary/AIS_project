@@ -103,6 +103,7 @@ def center_calc(df_results):
                         .loc[:,['average_lat','average_lon']].values))
         haver_result = (haversine_distances(X,Y)) * 6371.0088 #km to radians
         haver_dict = {'clust_id': i, 'min_dist_from_center': haver_result.min(), 
+                      'max_dist_from_center': haver_result.max(),
                       'average_dist_from_center':np.mean(haver_result)}
         haver_list.append(haver_dict)
         
@@ -263,21 +264,26 @@ for e in epsilons:
         print('All processing for this run complete.')
         print ('Time elapsed: {}'.format(lapse))
     
-        rollup_dict = {'eps_km':e, 'min_samples':s, 'time':lapse, 
-                        'numb_obs':len(df_rollup), 
+        rollup_dict = {'eps_km':e, 'min_samples':s, 'time':lapse,
                         'average_cluster_count':np.mean(df_rollup['total_clust_count']),
                         # the proporition of ports with NONE.  a higher proportion suggests more false alarms.
                         'prop_where_NONE_has_most_points': df_rollup['port_name_with_most_points'].value_counts()['NONE']/len(df_rollup),
                         # if this is less than one, means more than one port is near this cluster.
                         'average_ports_per_cluster':np.mean(df_rollup['counts_per_port']),
-                        'average_counts_per_port':np.mean(df_rollup['counts_at_port']),
-                        
+                        # how many positions are labeled in port.
+                        'average_counts_per_port':np.mean(df_rollup['counts_at_port']), 
+                        # proportion near top port.  Closer to 1, more homogenous.
                         'average_prop_per_port':np.mean(df_rollup['proportion_near_top_port']),
-
+                        # closest port.  Closer the better.
                         'average_nearest_port_from_center':np.mean(df_rollup['nearest_port_dist']),
-                        'average_cluster_density':np.mean(df_rollup['average_dist_from_center']),
+                        # average and max distance from cluster center.
+                        'average_dist_from_center':np.mean(df_rollup['average_dist_from_center']),
+                        'average_max_dist_from_center':np.mean(df_rollup['max_dist_from_center']),
+                        
                         'numb_clusters':len(np.unique(df_rollup['clust_id'])),
                         'ports_with_most_points':df_rollup['port_name_with_most_points'].to_list(),
+                        # the average proportion of the positions in a clusters made by top mmsi.
+                        # higher indicates homogenity.
                         'average_top_mmsi_prop':np.mean(df_rollup['top_mmsi_prop']),
                         # the proportion where the top mmsi in a cluster is more than 95% of all points.  
                         # more hetrogenous clusters (less pure) could be helpful in idenitfying areas where many
