@@ -80,8 +80,12 @@ else:
     print('Error connecting.')
 c.close()
 #%%
-epsilons = [5, 7, 10, 15]
-samples = [50, 100, 250, 500, 1000, 2000]
+#epsilons = [5, 7, 10, 15]
+#samples = [50, 100, 250, 500, 1000, 2000]
+
+epsilons = [20, 25, 30]
+samples = [2500, 3000, 4000, 5000]
+
 for e in epsilons:
     for s in samples:      
             
