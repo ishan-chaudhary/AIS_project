@@ -71,14 +71,14 @@ else: print('Connection failed.')
 aws_c.close()
 
 #%%
-database='ais_test'
-loc_conn = psycopg2.connect(host="localhost",database=database)
-c = loc_conn.cursor()
-if c:
-    print('Connection to {} is good.'.format(database))
-else:
-    print('Error connecting.')
-c.close()
+#database='ais_test'
+#loc_conn = psycopg2.connect(host="localhost",database=database)
+#c = loc_conn.cursor()
+#if c:
+#    print('Connection to {} is good.'.format(database))
+#else:
+#    print('Error connecting.')
+#c.close()
 #%%
 
 
