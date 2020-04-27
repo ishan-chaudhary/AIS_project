@@ -39,7 +39,7 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
         FROM {};""".format(new_table_name, eps, min_samples, source_table)
     except:
         print('{} table already exists.'.format(table))
-        break
+        return 
 
     # execute dbscan script
     c = conn.cursor()
