@@ -13,3 +13,4 @@ DBSCAN/report/ML1 Report.docx
 *.pptx
 *.docx
 .DS_Store
+*.pem
