@@ -37,25 +37,27 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
         ST_ClusterDBSCAN(Geometry(geog), eps := {},
         minpoints := {}) over () as clust_id
         FROM {};""".format(new_table_name, eps, min_samples, source_table)
+        # execute dbscan script
+        c = conn.cursor()
+        c.execute(dbscan_sql)
+        conn.commit()
+
+        # add a geom column to the new table and populate it from the lat and lon columns
+        c.execute("""ALTER TABLE {} ADD COLUMN
+                    geom geometry(Point, 4326);""".format(new_table_name))
+        conn.commit()
+        c.execute("""UPDATE {} SET
+                    geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);""".format(new_table_name))
+        conn.commit()
+        c.close()
+
+        print('DBSCAN complete, {} created'.format(new_table_name))
+
     except:
         print('{} table already exists.'.format(table))
-        return 
+        return
 
-    # execute dbscan script
-    c = conn.cursor()
-    c.execute(dbscan_sql)
-    conn.commit()
 
-    # add a geom column to the new table and populate it from the lat and lon columns
-    c.execute("""ALTER TABLE {} ADD COLUMN
-                geom geometry(Point, 4326);""".format(new_table_name))
-    conn.commit()
-    c.execute("""UPDATE {} SET
-                geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);""".format(new_table_name))
-    conn.commit()
-    c.close()
-
-    print('DBSCAN complete, {} created'.format(new_table_name))
 
 #%% Run this code when we generate our own df_results from dbscan
 
