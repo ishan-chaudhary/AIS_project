@@ -224,8 +224,8 @@ path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/{}/'.fo
 if not os.path.exists(path):
     os.makedirs(path)
 
-epsilons = [2, 5, 7, 10, 15]
-samples = [50, 100, 250, 500, 1000, 2000]
+epsilons = [20, 25, 30]
+samples = [2500, 3000, 4000, 5000]
 for e in epsilons:
     for s in samples:      
         print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={} """.format(str(e), str(s)))
@@ -263,8 +263,14 @@ for e in epsilons:
         lapse = tock - tick
         print('All processing for this run complete.')
         print ('Time elapsed: {}'.format(lapse))
-    
-        rollup_dict = {'eps_km':e, 'min_samples':s, 'time':lapse,
+        
+        # the rollup dict contains multiple different metrics options.
+        # non-daignostic metrics are commented out but not deleted as they 
+        # may be helpful in other problems.
+        rollup_dict = {'eps_km':e, 'min_samples':s, 
+                       'params' : (str(e) + '_' + str(s)),
+                        #built for time tracking.  not required any longer
+                        #'time':lapse,
                         # number of clusters in the run
                         'numb_clusters':len(np.unique(df_rollup['clust_id'])),
                         # average positions per each cluster in each run
@@ -278,25 +284,32 @@ for e in epsilons:
                         'average_max_dist_from_center':np.mean(df_rollup['max_dist_from_center']),
                         
                         # purity metrics
-                        # the proporition of ports with NONE.  a higher proportion suggests more false alarms.
-                        'prop_where_NONE_has_most_points': df_rollup['port_name_with_most_points'].value_counts()['NONE']/len(df_rollup),
+                        # the proporition of clusters where the most points labeled near a port
+                        # a higher proportion suggests more accuracy.
+                        'prop_where_most_points_labeled_as_in_ports': 1-(df_rollup['port_name_with_most_points']
+                                                              .value_counts()['NONE']
+                                                              /len(df_rollup)),
+                        # count of clusters where most points are labeled as in port
+                        'clust_numb_where_most_points_labeled_as_in_ports': (
+                            df_rollup['port_name_with_most_points'].count() -
+                            df_rollup['port_name_with_most_points'].value_counts()['NONE']),
                         # if this is less than one, means more than one port is near this cluster.
-                        'average_ports_per_cluster':np.mean(df_rollup['counts_per_port']),
+                       # 'average_ports_per_cluster':np.mean(df_rollup['counts_per_port']),
                         # how many positions are labeled in port.
-                        'average_counts_per_port':np.mean(df_rollup['counts_at_port']), 
+                       # 'average_counts_per_port':np.mean(df_rollup['counts_at_port']), 
                         # proportion near top port.  Closer to 1, more homogenous.
-                        'average_prop_per_port':np.mean(df_rollup['proportion_near_top_port']),
+                       # 'average_prop_per_port':np.mean(df_rollup['proportion_near_top_port']),
                         
                         # composition metrics
                         # the average proportion of the positions in a clusters made by top mmsi.
                         # higher indicate homogenity.
-                        'average_top_mmsi_prop':np.mean(df_rollup['top_mmsi_prop']),
+                      #  'average_top_mmsi_prop':np.mean(df_rollup['top_mmsi_prop']),
                         # the proportion where the top mmsi in a cluster is more than 95% of all points.  
                         # more hetrogenous clusters (less pure) could be helpful in idenitfying areas where many
                         # ships are present.
-                        'prop_were_top_mmsi >95%': len(df_rollup[df_rollup['top_mmsi_prop']>.95])/len(df_rollup),
+                      #  'prop_were_top_mmsi >95%': len(df_rollup[df_rollup['top_mmsi_prop']>.95])/len(df_rollup),
                         # average number of mmsis per each cluster per run
-                        'average_mmsi_per_clust':np.mean(df_rollup['mmsi_per_clust'])}
+                        'average_mmsi_per_clust':(np.mean(df_rollup['mmsi_per_clust']))}
        
         rollup_list.append(rollup_dict)
         
@@ -304,43 +317,11 @@ for e in epsilons:
         
         print('Finished with round ', len(rollup_list))
         print('')
-#%%
+#%% Make the final_df from the rollup and save to csv.
 final_df = pd.DataFrame(rollup_list).round(3)
-final_df.to_csv(path+'summary_5k.csv')
-
-#%% use this to reload data if needed
-#path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/2020-04-24/'
-#final_df = pd.read_csv(path+'summary_5k.csv')
-#%% build some scatterplots
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-def scatter_3d(value, df, highlight=None):
-    final_df = df
-    X = final_df['eps_km']
-    Y = final_df['min_samples']
-    Z = final_df[value]
-
-    
-    fig = plt.figure(figsize=(8,6))
-    ax = fig.add_subplot(111, projection='3d')
-    
-    if highlight:
-        ax.scatter(X[np.arange(len(X))!=highlight], Y[np.arange(len(Y))!=highlight], 
-                    Z[np.arange(len(Z))!=highlight], c='r', marker='o')
-        ax.scatter(X[highlight], Y[highlight], Z[highlight], c='black', marker='D')
-    else:
-        ax.scatter(X, Y, Z, c='r', marker='o')
-        
-    ax.set_xlabel('eps_km')
-    ax.set_ylabel('min_samples')
-    ax.set_zlabel(value)
-    plt.title('DBSCAN Metrics Evaluation for {}'.format(value))
-    ax.view_init(30, 160)
-#%%
-key_features = ['numb_clusters','prop_where_NONE_has_most_points', 
-                'average_mmsi_per_clust', 'average_top_mmsi_prop']
-
-for f in key_features:
-    scatter_3d(f, final_df)
+final_df['params'] = (final_df['eps_km'].astype('str') + '_' 
+                      + final_df['min_samples'].astype('str'))
+final_df.set_index('params', inplace=True)
+#final_df.to_csv(path+'summary_5k.csv')
 
 
