@@ -23,19 +23,23 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
                       '_' + str(min_samples))
 
     # drop table if an old one exists
-    c = conn.cursor()
-    c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
-    conn.commit()
-    c.close()
+    #c = conn.cursor()
+    #c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
+    #conn.commit()
+    #c.close()
 
     print("""Starting processing on DBSCAN with eps_km={} and
           min_samples={} """.format(str(eps_km), str(min_samples)))
 
-    dbscan_sql = """CREATE TABLE {} AS
-    SELECT id, lat, lon,
-    ST_ClusterDBSCAN(Geometry(geog), eps := {},
-    minpoints := {}) over () as clust_id
-    FROM {};""".format(new_table_name, eps, min_samples, source_table)
+    try:
+        dbscan_sql = """CREATE TABLE IF NOT EXISTS {} AS
+        SELECT id, lat, lon,
+        ST_ClusterDBSCAN(Geometry(geog), eps := {},
+        minpoints := {}) over () as clust_id
+        FROM {};""".format(new_table_name, eps, min_samples, source_table)
+    except:
+        print('{} table already exists.'.format(table))
+        break
 
     # execute dbscan script
     c = conn.cursor()
