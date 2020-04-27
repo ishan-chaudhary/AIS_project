@@ -41,8 +41,10 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
         c = conn.cursor()
         c.execute(dbscan_sql)
         conn.commit()
+        c.close()
 
         # add a geom column to the new table and populate it from the lat and lon columns
+        c = conn.cursor()
         c.execute("""ALTER TABLE {} ADD COLUMN
                     geom geometry(Point, 4326);""".format(new_table_name))
         conn.commit()
@@ -55,7 +57,7 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
 
     except:
         print('{} table already exists.'.format(new_table_name))
-        return
+        return 'table exists'
 
 
 
