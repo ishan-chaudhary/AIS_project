@@ -54,7 +54,7 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
         print('DBSCAN complete, {} created'.format(new_table_name))
 
     except:
-        print('{} table already exists.'.format(table))
+        print('{} table already exists.'.format(new_table_name))
         return
 
 
