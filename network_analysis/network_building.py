@@ -1,7 +1,6 @@
 import psycopg2
 import pandas as pd
 import datetime
-import matplotlib as plt
 import networkx as nx
 
 #%% Make and test conn and cursor
@@ -20,9 +19,9 @@ def execute_sql(SQL_string):
 
 #%%
 c = conn.cursor()
-c.execute("""DROP TABLE IF EXISTS edges_sample;""")
+c.execute("""DROP TABLE IF EXISTS edges;""")
 conn.commit()
-c.execute("""CREATE TABLE IF NOT EXISTS edges_sample  (
+c.execute("""CREATE TABLE IF NOT EXISTS edges  (
         origin              int, 
         destination         int,
         mmsi                text, 
@@ -35,7 +34,7 @@ c.close()
 
 #%% get mmsi
 c = conn.cursor()
-c.execute("""SELECT DISTINCT(mmsi) FROM ship_position_sample;""")
+c.execute("""SELECT DISTINCT(mmsi) FROM ship_position;""")
 mmsi_list = c.fetchall()
 c.close()
 #%% Get the df from the database
@@ -52,7 +51,7 @@ for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
     mmsi = mmsi_list[i][0]
     # not efficent, but the easiest way to parse.  Largest number of positions
     # for all data is only about 40,000, so pandas can handle it
-    df = pd.read_sql("""select * from port_activity_sample 
+    df = pd.read_sql("""select * from port_activity_5k 
                       where mmsi = '{}' order by time""".format(mmsi), conn)
     # networkx is using numeric nodes, so we will repersent at sea as 0
     df.fillna(value=0, inplace=True)  
@@ -67,6 +66,8 @@ for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
     destination = df['port_id'].iloc[0]
     arrival_time = df['time'].iloc[0] 
     position_count = 0
+    
+    print('Working on MMSI:', mmsi)
 
     for idx in (range(len(df)-1)):
         
@@ -86,7 +87,7 @@ for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
                 position_count += 1
 
                 # add to the db
-                insert_edge_sql = """INSERT INTO edges_sample (origin, destination, 
+                insert_edge_sql = """INSERT INTO edges (origin, destination, 
                 mmsi, depart_time, position_count, arrival_time) VALUES (%s,%s, %s, %s, %s, %s)"""
                 record_values = (int(origin), int(destination), mmsi, depart_time, 
                                  int(position_count), arrival_time)         
