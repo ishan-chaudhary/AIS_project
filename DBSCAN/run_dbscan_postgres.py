@@ -22,17 +22,11 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
     new_table_name = ('dbscan_results_' + str(eps_km).replace('.','_') +
                       '_' + str(min_samples))
 
-    # drop table if an old one exists
-    c = conn.cursor()
-    c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
-    conn.commit()
-    c.close()
-
     print("""Starting processing on DBSCAN with eps_km={} and
           min_samples={} """.format(str(eps_km), str(min_samples)))
 
     try:
-        dbscan_sql = """CREATE TABLE {} AS
+        dbscan_sql = """CREATE TABLE IF NOT EXITS{} AS
         SELECT id, lat, lon,
         ST_ClusterDBSCAN(Geometry(geog), eps := {},minpoints := {}) 
         over () as clust_id
@@ -43,26 +37,23 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
         conn.commit()
         c.close()
 
-        # add a geom column to the new table and populate it from the lat and lon columns
-        c = conn.cursor()
-        c.execute("""ALTER TABLE {} ADD COLUMN
-                    geom geometry(Point, 4326);""".format(new_table_name))
-        conn.commit()
-        c.execute("""UPDATE {} SET
-                    geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);""".format(new_table_name))
-        conn.commit()
-        c.close()
-
         print('DBSCAN complete, {} created'.format(new_table_name))
-
+        
     except:
-        print('{} table already exists.'.format(new_table_name))
-        return 'table exists'
+        print('DBSCAN failed.')
 
+def make_tables_geom(table, conn):
+    # add a geom column to the new table and populate it from the lat and lon columns
+    c = conn.cursor()
+    c.execute("""ALTER TABLE {} ADD COLUMN
+                geom geometry(Point, 4326);""".format(table))
+    conn.commit()
+    c.execute("""UPDATE {} SET
+                geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);""".format(table))
+    conn.commit()
+    c.close()
 
-
-#%% Run this code when we generate our own df_results from dbscan
-
+#%% 
 import aws_credentials as a_c
 user = a_c.user
 host = a_c.host
@@ -87,9 +78,17 @@ aws_c.close()
 #else:
 #    print('Error connecting.')
 #c.close()
+
+
+
+    # # drop table if an old one exists
+    # c = conn.cursor()
+    # c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
+    # conn.commit()
+    # c.close()
 #%%
 
-
+print('Function run at:', datetime.datetime.now())
 epsilons = [2, 5, 7, 10, 15, 20, 25, 30]
 samples = [50, 100, 250, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000]
 
