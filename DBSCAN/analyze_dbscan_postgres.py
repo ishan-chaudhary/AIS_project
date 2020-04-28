@@ -322,6 +322,6 @@ final_df = pd.DataFrame(rollup_list).round(3)
 final_df['params'] = (final_df['eps_km'].astype('str') + '_' 
                       + final_df['min_samples'].astype('str'))
 final_df.set_index('params', inplace=True)
-#final_df.to_csv(path+'summary_5k.csv')
+final_df.to_csv(path+'summary_5k.csv')
 
 
