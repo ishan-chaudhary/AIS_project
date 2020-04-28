@@ -27,12 +27,14 @@ The project has four major phases.
 
 
   ## Required Software
+
   - PostGreSQL with post GIS
   - PG Admin 4
   - QGIS
   - Spyder
 
   Python Packages Used (Current 24 April 2020)
+
   Database management
   - psycopg2 (trying to replace all instances with sqlalchemy)
   - sqlalchemy
@@ -148,6 +150,22 @@ The project has four major phases.
   - add column for composition, ie how many unique mmsis are in each cluster.  penalize singletons.
   - cluster max width
 
+  Notes on Scripts and Outputs
+  The run_dbscan_postgres.py file takes the full data and executes dbscan against the entires dataset by iterating through a set of provided hyperparameters.  The output is:
+
+  -A table for each run with the original unique ID, lat, lon, and assigned cluster id (if any) for each original position
+
+  The analyze_dbscan_postgres.py file uses the tables created in the previous script to create metrics for each run, and then summarize them.  The outputs are:
+
+  -A "roll-up" csv for each run with metrics for each cluster.  This is written to a local path with a head folder created named today's data.
+
+  -A summary csv which computes metrics for each run based on the roll-up csv which has metrics for each cluster.  This is written to the same local path.
+
+  The metric_eval.py helps identify diagnostic metrics through 3D scatter plots and then can generate scaled, weighted final scores for each metric across runs.  This file does not write any output, but can produce tables or graphics as needed.
+
+  The run_rollups_and_summary.zip contains the rollup csv for the the 30 runs and the summary csv computing metrics across the 30 runs.
+
+  The dbscan_sklearn_looped.py file contains initial work on optimizing Scikit-Learn's DBSCAN implementation.  This was abandoned because of Scikit-Learn's issues with the large data size.
 
 
   # Network Analysis

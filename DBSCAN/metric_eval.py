@@ -8,14 +8,11 @@ Created on Sun Apr 26 16:51:09 2020
 
 import pandas as pd
 import numpy as np
-import os
 
-#time tracking
-import datetime
 
 #%% use this to reload data if needed
-#path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/2020-04-24/'
-#final_df = pd.read_csv(path+'summary_5k.csv')
+path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/2020-04-24/'
+final_df = pd.read_csv(path+'summary_5k.csv')
 #%% build some scatterplots
 import matplotlib.pyplot as plt
 #although not used, Axes3D is required
