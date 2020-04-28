@@ -13,8 +13,8 @@ import datetime
 database = 'ais_test'
 
 #%% Make and test conn and cursor
-conn = psycopg2.connect(host="localhost",database=database)
-c = conn.cursor()
+loc_conn = psycopg2.connect(host="localhost",database=database)
+c = loc_conn.cursor()
 if c:
     print('Connection to {} is good.'.format(database))
 else:
@@ -48,64 +48,63 @@ from sqlalchemy import create_engine
 aws_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(user, password, 
                                                                 host, port, database))
 
-
     
-
-#%% Function for executing SQL
-def execute_sql(SQL_string):
+#%% Create Port Activity table 
+def create_port_activity_table(source_table, destination_table, dist, conn):
+    
+    port_activity_sample_sql = """
+    -- This SQL query has two with selects and then a final select to create the new table.
+    -- First create the table.  Syntax requires its creation before any with clauses.
+    CREATE TABLE {} AS
+    -- First with clause gets all positions within x meters of any port.  Note there are dupes.
+    WITH port_activity as (
+    		SELECT s.id, s.mmsi, s.time, wpi.port_name, wpi.index_no as port_id,
+    		(ST_Distance(s.geog, wpi.geog)) as dist_meters
+    		FROM ship_position_sample AS s
+    		JOIN wpi 
+    		ON ST_DWithin(s.geog, wpi.geog, {})
+    -- Second with clause has a nested select that returns the closest port and groups by mmsi and time.
+    -- This result is then joined back to the original data.
+    ),  port_activity_reduced as (
+    		SELECT pa.id, pa.mmsi, pa.time, pa.port_name, pa.port_id, t_agg.dist_meters FROM
+    		(SELECT mmsi, time, min(dist_meters) as dist_meters 
+    		FROM port_activity as pa
+    		GROUP BY (mmsi, time)) as t_agg, 
+    		port_activity as pa
+    		WHERE pa.mmsi = t_agg.mmsi AND
+    		pa.time = t_agg.time AND
+    		pa.dist_meters = t_agg.dist_meters
+    )
+    -- We need all of the original fields from ship_position as well so this block joins the
+    -- results back to ALL positions, regardles if they were near a port.  
+    		SELECT pos.id, pos.mmsi, pos.time, pos.geog, pa.port_name, pa.port_id
+    		FROM 
+    		{} as pos
+    		LEFT JOIN
+    		port_activity_reduced as pa
+    		ON (pa.mmsi = pos.mmsi) AND
+    		(pa.time = pos.time) 
+    		ORDER BY (pos.mmsi, pos.time);""".format(destination_table, dist, source_table)
+            
+    first_tick = datetime.datetime.now()
+    print('Starting Processing at: ', first_tick.time())
+    
     c = conn.cursor()
-    c.execute(SQL_string)
+    c.execute(port_activity_sample_sql)
     conn.commit()
     c.close()
     
-#%% Create Port Activity table 
-destination_table = 'port_activity_sample_10k'
-source_table = 'ship_position_sample'    
-dist = 10000
-
-port_activity_sample_sql = """
--- This SQL query has two with selects and then a final select to create the new table.
--- First create the table.  Syntax requires its creation before any with clauses.
-CREATE TABLE {} AS
--- First with clause gets all positions within x meters of any port.  Note there are dupes.
-WITH port_activity as (
-		SELECT s.id, s.mmsi, s.time, wpi.port_name, wpi.index_no as port_id,
-		(ST_Distance(s.geog, wpi.geog)) as dist_meters
-		FROM ship_position_sample AS s
-		JOIN wpi 
-		ON ST_DWithin(s.geog, wpi.geog, {})
--- Second with clause has a nested select that returns the closest port and groups by mmsi and time.
--- This result is then joined back to the original data.
-),  port_activity_reduced as (
-		SELECT pa.id, pa.mmsi, pa.time, pa.port_name, pa.port_id, t_agg.dist_meters FROM
-		(SELECT mmsi, time, min(dist_meters) as dist_meters 
-		FROM port_activity as pa
-		GROUP BY (mmsi, time)) as t_agg, 
-		port_activity as pa
-		WHERE pa.mmsi = t_agg.mmsi AND
-		pa.time = t_agg.time AND
-		pa.dist_meters = t_agg.dist_meters
-)
--- We need all of the original fields from ship_position as well so this block joins the
--- results back to ALL positions, regardles if they were near a port.  
-		SELECT pos.id, pos.mmsi, pos.time, pos.geog, pa.port_name, pa.port_id
-		FROM 
-		{} as pos
-		LEFT JOIN
-		port_activity_reduced as pa
-		ON (pa.mmsi = pos.mmsi) AND
-		(pa.time = pos.time) 
-		ORDER BY (pos.mmsi, pos.time);""".format(destination_table, dist, source_table)
+    last_tock = datetime.datetime.now()
+    lapse = last_tock - first_tick
+    print('Processing Done.  Total time elapsed: ', lapse)
 #%% Run query
-first_tick = datetime.datetime.now()
-print('Starting Processing at: ', first_tick.time())
-execute_sql(port_activity_sample_sql)
-last_tock = datetime.datetime.now()
-lapse = last_tock - first_tick
-print('Processing Done.  Total time elapsed: ', lapse)
+# new table to make
+destination_table = 'port_activity_5k'
+# table to pull from
+source_table = 'ship_position'    
+# distance in meters
+dist = 5000
+# define the db connection
+conn = loc_conn
 
-
-
-
-
-    
+create_port_activity_table(source_table, destination_table, dist, conn)
