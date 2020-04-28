@@ -66,9 +66,6 @@ The project has four major phases.
 
   Current implementation (16 January 2020) uses a source directory as an input and iterates through all the csv files in that directory.  Future improvements can allow filtering based on month and zone.  Additionally, can eventually add a webscraper component.
 
-  Still to do on ingest script:
-  - Set up scrape from remote website
-  - set up automatic filters for zones and months so they dont have to be manually selected.
 
 ## Ingest Pipeline Summary
   First we create a new database (in prod it is the "AIS_data" database) and then build a Post GIS extension.  Then we run the python script "ingest_script_prod".  This script:
@@ -95,12 +92,9 @@ The project has four major phases.
 
   The WPI dataset has  duplicate port locations.  Specifically, the exact same geos are used twice by two different named and indexed ports 13 times.  I naively dropped duplicates on the lat and lon columns to resolve.  No order is guaranteed, so this is a risk for reproducibility.  TODO: EIther order the drops in some way or record the 13 ports removed for documentation.
 
-  Still TODO
-  - rejoin this back to the main tables since we want to have a port for each position as well as the blanks.  Making a new table is fine for the sample data, but not for the full data.
 
 ## Table Summary for ingest pipeline
   imported_ais --> ship_position --> ship_trips --> port_activity
-  TODO add ERD here.
 
 ## Lessons Learned
 ### Using PostGreSQL COPY
@@ -117,7 +111,7 @@ The project has four major phases.
   ON ship_test
   USING GIST (geog);
 
-  #### Notes on Visualizing in QGIS
+#### Notes on Visualizing in QGIS
 
   Large numbers of points within a vector layer can severely impact rendering performance within QGIS.  Recommend using the "Set Layer Scale Visibility" to only show the points at a certain scale.  Currently I found a minimum of 1:100000 appropriate with no maximum.  Ship trips can have no scale visibility because they render much faster.
 
@@ -148,26 +142,6 @@ The project has four major phases.
   The metric_eval.py helps identify diagnostic metrics through 3D scatter plots and then can generate scaled, weighted final scores for each metric across runs.  This file does not write any output, but can produce tables or graphics as needed.
 
   The dbscan_sklearn_looped.py file contains initial work on optimizing Scikit-Learn's DBSCAN implementation.  This was abandoned (for now) because of Scikit-Learn's issues with the large data size.
-
-  Next steps:
-
-## TODO
-### Time as a Z Dimension?
-  How do we want to represent time?  If we include it as a Z dimension, the scale will impact different clustering spaces.  Perhaps we can run the same clustering approaches with different time scales to show how it can impact the final clusters.  Or we could just ignore time entirely and cluster just based on spatial activity.
-
-  We could just say that DBSCAN has to iteratively move through a time window, and try to implement that...
-
-### Improvements to DBSCAN
-  - Likely DBSCAN is the best implementation.
-  - Look at OPTICS though since it might find smaller clusters better
-  - Look at new mthod for finding optimal value of epsilon (https://towardsdatascience.com/machine-learning-clustering-dbscan-determine-the-optimal-value-for-epsilon-eps-python-example-3100091cfbc)
-  - Would Gaussian mixture models successfully identify anamalous ship traffic?
-
-### Cluster by Ship, then make super clusters
-  We can run the clustering for each ship, and then cluster all the ports from all the ships to find final ports.  This may be less subject to drift over time.  Our hyperparametrs are only good for the volume of ships in the timeframe.  Say we had well-tuned parameters for a month of AIS data.  They would be far too low for a years worth of data, because 12 times the shipping activity is in the same area.  If we cluster the activity first and then cluster to find ports, its could be more resistent to walking.
-
-### Need to remove all traffic in rivers and inland waterways
-  These make a lot of orphan clusters because WPI has no port info for rivers.  We can create a Post-GIS object for the coast, and remove all points further than 50 miles from the coast.
 
 # Network Analysis
   First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.
