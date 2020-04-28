@@ -23,19 +23,19 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
                       '_' + str(min_samples))
 
     # drop table if an old one exists
-    #c = conn.cursor()
-    #c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
-    #conn.commit()
-    #c.close()
+    c = conn.cursor()
+    c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
+    conn.commit()
+    c.close()
 
     print("""Starting processing on DBSCAN with eps_km={} and
           min_samples={} """.format(str(eps_km), str(min_samples)))
 
     try:
-        dbscan_sql = """CREATE TABLE IF NOT EXISTS {} AS
+        dbscan_sql = """CREATE TABLE {} AS
         SELECT id, lat, lon,
-        ST_ClusterDBSCAN(Geometry(geog), eps := {},
-        minpoints := {}) over () as clust_id
+        ST_ClusterDBSCAN(Geometry(geog), eps := {},minpoints := {}) 
+        over () as clust_id
         FROM {};""".format(new_table_name, eps, min_samples, source_table)
         # execute dbscan script
         c = conn.cursor()
@@ -95,6 +95,14 @@ samples = [50, 100, 250, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000]
 
 for e in epsilons:
     for s in samples:
+        
+        aws_conn = psycopg2.connect(host=host,database=database,
+                        user=user,password=password)
+        aws_c = aws_conn.cursor()
+        if aws_c:
+            print('Connection to AWS is good.'.format(database))
+        else: print('Connection failed.')
+        aws_c.close()
 
         tick = datetime.datetime.now()
         # pass the epsilon in km.  the function will convert it to radians
