@@ -55,14 +55,14 @@ def create_port_activity_table(source_table, destination_table, dist, conn):
     port_activity_sample_sql = """
     -- This SQL query has two with selects and then a final select to create the new table.
     -- First create the table.  Syntax requires its creation before any with clauses.
-    CREATE TABLE {} AS
+    CREATE TABLE {1} AS
     -- First with clause gets all positions within x meters of any port.  Note there are dupes.
     WITH port_activity as (
     		SELECT s.id, s.mmsi, s.time, wpi.port_name, wpi.index_no as port_id,
     		(ST_Distance(s.geog, wpi.geog)) as dist_meters
-    		FROM ship_position_sample AS s
+    		FROM {0} AS s
     		JOIN wpi 
-    		ON ST_DWithin(s.geog, wpi.geog, {})
+    		ON ST_DWithin(s.geog, wpi.geog, {2})
     -- Second with clause has a nested select that returns the closest port and groups by mmsi and time.
     -- This result is then joined back to the original data.
     ),  port_activity_reduced as (
@@ -79,13 +79,13 @@ def create_port_activity_table(source_table, destination_table, dist, conn):
     -- results back to ALL positions, regardles if they were near a port.  
     		SELECT pos.id, pos.mmsi, pos.time, pos.geog, pa.port_name, pa.port_id
     		FROM 
-    		{} as pos
+    		{0} as pos
     		LEFT JOIN
     		port_activity_reduced as pa
     		ON (pa.mmsi = pos.mmsi) AND
     		(pa.time = pos.time) 
-    		ORDER BY (pos.mmsi, pos.time);""".format(destination_table, dist, source_table)
-            
+    		ORDER BY (pos.mmsi, pos.time);""".format(source_table, destination_table, dist)
+          
     first_tick = datetime.datetime.now()
     print('Starting Processing at: ', first_tick.time())
     
@@ -98,13 +98,8 @@ def create_port_activity_table(source_table, destination_table, dist, conn):
     lapse = last_tock - first_tick
     print('Processing Done.  Total time elapsed: ', lapse)
 #%% Run query
-# new table to make
-destination_table = 'port_activity_5k'
-# table to pull from
-source_table = 'ship_position'    
-# distance in meters
-dist = 5000
-# define the db connection
-conn = loc_conn
 
-create_port_activity_table(source_table, destination_table, dist, conn)
+create_port_activity_table('ship_position_sample', 'port_activity_2k', 2000, loc_conn)
+#%%
+create_port_activity_table('ship_position', 'port_activity_5k', 5000, loc_conn)
+
