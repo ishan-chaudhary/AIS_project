@@ -30,13 +30,13 @@ else:
     print('Error connecting.')
 c.close()
 
-def create_sql_alch_engine(database):
+def create_loc_engine(database):
     user = 'patrickmaus'
     host = 'localhost'
     port = '5432'
-    return create_engine('postgresql://{}@{}:{}/{}'.format(user, host, 
-                                                           port, database))
-loc_engine = create_sql_alch_engine('ais_test')
+    return create_engine('postgresql://{}@{}:{}/{}'.format(user, host, port, database))
+
+loc_engine = create_loc_engine('ais_test')
 
 #%% This function will be used to write results to the database
 def df_to_table_with_geom(df, name, eps, min_samples, conn):

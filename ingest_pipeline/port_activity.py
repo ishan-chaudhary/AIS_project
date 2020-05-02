@@ -7,13 +7,15 @@ Created on Thu Jan 16 14:14:56 2020
 """
 
 import psycopg2
+from sqlalchemy import create_engine
 import datetime
 
-#choose db.  this is used for connections throughout the script
-database = 'ais_test'
+import aws_credentials as a_c
+
 
 #%% Make and test conn and cursor
-loc_conn = psycopg2.connect(host="localhost",database=database)
+database='ais_test'
+loc_conn = psycopg2.connect(host="localhost",database='ais_test')
 c = loc_conn.cursor()
 if c:
     print('Connection to {} is good.'.format(database))
@@ -21,7 +23,7 @@ else:
     print('Error connecting.')
 c.close()
 #%%
-import aws_credentials as a_c
+
 user = a_c.user
 host = a_c.host
 port = '5432'
@@ -37,16 +39,15 @@ if aws_c:
 else: print('Connection failed.')
 aws_c.close()
 #%%
-import aws_credentials as a_c
-user = a_c.user
-host = a_c.host
-port = '5432'
-database = 'aws_ais_clustering'
-password = a_c.password
-from sqlalchemy import create_engine
+def create_aws_engine(database):
+    import aws_credentials as a_c
+    user = a_c.user
+    host = a_c.host
+    port = '5432'
+    password = a_c.password
+    return create_engine('postgresql://{}:{}@{}:{}/{}'.format(user, password, host, port, database))
 
-aws_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(user, password, 
-                                                                host, port, database))
+aws_engine = create_aws_engine('aws_ais_clustering')
 
     
 #%% Create Port Activity table 
