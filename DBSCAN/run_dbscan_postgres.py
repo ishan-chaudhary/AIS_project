@@ -26,7 +26,7 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
           min_samples={} """.format(str(eps_km), str(min_samples)))
 
     try:
-        dbscan_sql = """CREATE TABLE IF NOT EXITS {} AS
+        dbscan_sql = """CREATE TABLE {} IF NOT EXITS AS
         SELECT id, lat, lon,
         ST_ClusterDBSCAN(Geometry(geog), eps := {},minpoints := {}) 
         over () as clust_id
