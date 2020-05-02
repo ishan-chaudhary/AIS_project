@@ -21,7 +21,6 @@ loc_engine = create_sql_alch_engine('ais_test')
 #%% variable delcaration
 port_activity_table = 'ship_position_ports'
 edge_table = 'edges'
-source_table = 'ship_position'
 dist = 5
 #%% Function for executing SQL
 def execute_sql(SQL_string):
@@ -66,6 +65,8 @@ c.execute("""SELECT DISTINCT(mmsi) FROM {};"""
           .format(edge_table))
 mmsi_list_completed = c.fetchall()
 c.close()
+
+# find the mmsis that are not in the edge table yet
 diff = lambda l1,l2: [x for x in l1 if x not in l2]
 mmsi_list = diff(mmsi_list_potential, mmsi_list_completed)
 #%% Get the df from the database

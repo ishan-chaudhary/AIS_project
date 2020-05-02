@@ -158,5 +158,10 @@ The project has four major phases.
   - Refactor not to use pandas if proved to be non-preformant
   - Break code block into functions
 
+### Note on Network Building
+So options.
+ - Create a knn script that finds the nearest port for every position report.  Done. Problem is that the network script needs the postions further than xkm and within xkm.
+ - Find nearest ports with 5, 10, xkm from every position.
+
 # Time series analysis
   Holt-winter seasonal model, multiple linear regression, ARMA, ARIMA, SARIMAX, and maybe even LSTM?  Predict volume at a port or for ports?  Or predict activity for a class of ships?
