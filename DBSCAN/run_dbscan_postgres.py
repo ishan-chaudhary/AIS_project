@@ -11,6 +11,7 @@ import datetime
 
 # db admin
 import psycopg2
+from sqlalchemy import create_engine
 
 #%%
 def postgres_dbscan(source_table, eps_km, min_samples, conn):
@@ -27,7 +28,7 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
 
     dbscan_sql = """CREATE TABLE IF NOT EXISTS {} AS
     SELECT id, lat, lon,
-    ST_ClusterDBSCAN(Geometry(geog), eps := {}, minpoints := {}) 
+    ST_ClusterDBSCAN(Geometry(geog), eps := {}, minpoints := {})
     over () as clust_id
     FROM {};""".format(new_table_name, str(eps), str(min_samples), source_table)
     # execute dbscan script
@@ -50,7 +51,7 @@ def make_tables_geom(table, conn):
     conn.commit()
     c.close()
 
-#%% 
+#%%
 import aws_credentials as a_c
 user = a_c.user
 host = a_c.host
@@ -58,13 +59,29 @@ port = '5432'
 database = 'aws_ais_clustering'
 password = a_c.password
 
-aws_conn = psycopg2.connect(host=host,database=database,
-                        user=user,password=password)
+aws_conn = psycopg2.connect(host=host,database=database, user=user,password=password)
 aws_c = aws_conn.cursor()
 if aws_c:
     print('Connection to AWS is good.'.format(database))
 else: print('Connection failed.')
 aws_c.close()
+
+
+# def create_aws_engine(database):
+#     import aws_credentials as a_c
+#     user = a_c.user
+#     host = a_c.host
+#     port = '5432'
+#     password = a_c.password
+#     try:
+#         aws_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(user, password, host, port, database))
+#         print('AWS Engine created and connected.')
+#         return aws_engine
+#     except:
+#         print('AWS Engine creation failed.')
+#         return None
+
+# aws_engine = create_aws_engine('aws_ais_clustering')
 
 #%%
 #database='ais_test'
@@ -91,9 +108,8 @@ samples = [50, 100, 250, 500, 1000, 1500, 2000, 3000, 5000]
 
 for e in epsilons:
     for s in samples:
-        
-        aws_conn = psycopg2.connect(host=host,database=database,
-                        user=user,password=password)
+
+        aws_conn = psycopg2.connect(host=host,database=database, user=user,password=password)
 
         tick = datetime.datetime.now()
         # pass the epsilon in km.  the function will convert it to radians
