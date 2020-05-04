@@ -13,6 +13,8 @@ import datetime
 import psycopg2
 from sqlalchemy import create_engine
 
+import random
+
 #%%
 import aws_credentials as a_c
 user = a_c.user
@@ -61,24 +63,28 @@ c.close()
     # conn.commit()
     # c.close()
 
-#%%
-source_table = 'ship_position_sample'
+#%% Get mmsis to cluster
+
+# all mmsis
+source_table = 'ship_trips'
 c = loc_conn.cursor()
 c.execute("""SELECT DISTINCT(mmsi) FROM {};""".format(source_table))
 mmsi_list = c.fetchall()
 c.close()
+#%%
+# all tankers and cargo ships
+c = loc_conn.cursor()
+c.execute("""SELECT DISTINCT(mmsi)
+          FROM cargo_tanker_mmsis;""")
+cargo_tanker_mmsi_list = c.fetchall()
+c.close()
 
+cargo_tanker_mmsi_sample = random.sample(cargo_tanker_mmsi_list,200)
 
 
 #%%
-def postgres_dbscan(source_table, eps_km, min_samples, mmsi_list, conn):
-
-    #this formulation will yield epsilon based on km desired
-    kms_per_radian = 6371.0088
-    eps = eps_km / kms_per_radian
-
-    new_table_name = ('dbscan_results_by_mmsi_' + str(eps_km).replace('.','_') +
-                      '_' + str(min_samples))
+def postgres_dbscan(source_table, new_table_name, eps_km, min_samples, 
+                    mmsi_list, conn):
     
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS {}
@@ -87,7 +93,7 @@ def postgres_dbscan(source_table, eps_km, min_samples, mmsi_list, conn):
         mmsi text,
         lat numeric,
         lon numeric,
-        clust_id integer
+        clust_id int
     );""".format(new_table_name))
     conn.commit()
 
@@ -101,11 +107,13 @@ def postgres_dbscan(source_table, eps_km, min_samples, mmsi_list, conn):
         over () as clust_id
         FROM {}
         WHERE mmsi = '{}';""".format(new_table_name, str(eps), str(min_samples), source_table, mmsi[0])
+        
         # execute dbscan script
         c = conn.cursor()
         c.execute(dbscan_sql)
         conn.commit()
         c.close()
+        
         print('MMSI {} complete.'.format(mmsi[0]))
     
     print('DBSCAN complete, {} created'.format(new_table_name))
@@ -129,15 +137,36 @@ print('Function run at:', datetime.datetime.now())
 epsilons = [2, 5, 7, 10]
 samples = [50, 100, 250, 500]
 
-for e in epsilons:
-    for s in samples:
+for eps_km in epsilons:
+    for min_samples in samples:
 
         loc_conn = psycopg2.connect(host="localhost",database=database)
         tick = datetime.datetime.now()
+        
+        #this formulation will yield epsilon based on km desired
+        kms_per_radian = 6371.0088
+        eps = eps_km / kms_per_radian
+    
+        # make the new table name
+        new_table_name = ('dbscan_results_cargo_by_mmsi_' + str(eps_km).replace('.','_') +
+                          '_' + str(min_samples))
+        
+        # drop table if exists if needed.
+        c = loc_conn.cursor()
+        c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
+        loc_conn.commit()
+        c.close()
+        
         # pass the epsilon in km.  the function will convert it to radians
-        postgres_dbscan('ship_position_sample', e, s, mmsi_list, loc_conn)
+        postgres_dbscan('cargo_tanker_position', new_table_name, eps_km , min_samples, 
+                        cargo_tanker_mmsi_sample, loc_conn)
+        
+        # add geom colum to the new tables
+        make_tables_geom(new_table_name, loc_conn)
 
         #timekeeping
         tock = datetime.datetime.now()
         lapse = tock - tick
         print ('Time elapsed: {}'.format(lapse))
+        
+        

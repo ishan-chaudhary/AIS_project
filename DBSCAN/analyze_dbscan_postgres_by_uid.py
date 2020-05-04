@@ -41,7 +41,7 @@ loc_engine = create_loc_engine('ais_test')
 #%% This function will be used to write results to the database
 def df_to_table_with_geom(df, name, eps, min_samples, conn):
     # add the eps and min_samples value to table name
-    new_table_name = ('dbscan_results_' + name + '_' + 
+    new_table_name = ('dbscan_results_by_mmsi' + name + '_' + 
                       str(eps).replace('.','_') + '_' + str(min_samples))
     
     # drop table if an old one exists
@@ -160,7 +160,7 @@ def purity_calc(df_results):
     
     return df_purity_grouped_top
 
-def composition_calc(table):
+def composition_calc(table, source_table):
     """
     This function will get data about the mmsis that compose each cluster.
     the first quey gets the counts by mmsi per each cluster.  
@@ -169,13 +169,13 @@ def composition_calc(table):
     The final df will also contain the top mmsi by count and with its proportion.
     """
     get_counts_sql = """select clust_id, count(posit.mmsi) as mmsi_count
-                from {} as results
+                from {0} as results
                 join 
-                (select id, mmsi from ship_position_sample) as posit 
+                (select id, mmsi from {1}) as posit 
                 on (results.id=posit.id)
                 where clust_id >= 0
                 group by (clust_id, posit.mmsi)
-                order by clust_id, mmsi_count;""".format(table)
+                order by clust_id, mmsi_count;""".format(table, source_table)
     count_results = pd.read_sql_query(get_counts_sql, loc_engine)
     
     get_mmsi_sql = """select clust_id, 
@@ -183,10 +183,10 @@ def composition_calc(table):
     count(distinct(posit.mmsi)) as mmsi_per_clust
     from {} as results
     join 
-    (select id, mmsi from ship_position_sample) as posit 
+    (select id, mmsi from {1}) as posit 
     on (results.id=posit.id)
     group by (clust_id)
-    order by clust_id;""".format(table)
+    order by clust_id;""".format(table, source_table)
     mmsi_results = pd.read_sql_query(get_mmsi_sql, loc_engine)
     # group by clustr id to get the total number of events within each cluster.
     grouped_comp = count_results.groupby('clust_id').sum()
@@ -207,7 +207,8 @@ def composition_calc(table):
 
 #%% Read in required data
 # make a df with  port activity
-df_port_activity = pd.read_sql('port_activity_sample_5k', loc_engine, 
+port_activity = 'cargo_port_activity_5k'
+df_port_activity = pd.read_sql(port_activity, loc_engine, 
                     columns=['id', 'port_name','port_id'])
 
 #get all the ports from the world port index
@@ -224,16 +225,20 @@ path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/{}/'.fo
 if not os.path.exists(path):
     os.makedirs(path)
 
-epsilons = [20, 25, 30]
-samples = [2500, 3000, 4000, 5000]
+epsilons = [2, 5, 7, 10, 15]
+samples = [50, 100, 250, 500]
 for e in epsilons:
     for s in samples:      
         print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={} """.format(str(e), str(s)))
         tick = datetime.datetime.now()
         
-        table = 'dbscan_results_{}_{}'.format(str(e), str(s))
-        df_results = pd.read_sql(table, loc_engine, columns=['id', 'lat','lon','clust_id'])
+        table = 'dbscan_results_cargo_by_mmsi_{}_{}'.format(str(e), str(s))
+        df_results = pd.read_sql(table, loc_engine, columns=['id', 'mmsi', 'lat','lon', 'clust_id'])
+        df_results.dropna(axis=0, how='any', inplace=True) 
         
+        df_results['clust_id'] = (df_results['mmsi'] + '_' + 
+                                  df_results['clust_id'].astype(int).astype(str))
+
         #determine the cluster center point, and find the distance to nearest port
         print('Starting distance calculations... ')
         df_centers = center_calc(df_results)
@@ -245,13 +250,13 @@ for e in epsilons:
         print('Finished purity calculations. ')
         
         #return details about the composition of mmsis in each cluster
-        print('Starting compostion calculations...')        
-        df_composition = composition_calc(table)
-        print('Finished composition calculations. ')
+        #print('Starting compostion calculations...')        
+        #df_composition = composition_calc(table)
+        #print('Finished composition calculations. ')
 
         # roll up 
         df_rollup = pd.merge(df_purity, df_centers, how='left', on='clust_id')
-        df_rollup = pd.merge(df_rollup, df_composition, how='left', on='clust_id')
+        #df_rollup = pd.merge(df_rollup, df_composition, how='left', on='clust_id')
         df_rollup['eps_km'] = e
         df_rollup['s'] = s
         
@@ -292,7 +297,7 @@ for e in epsilons:
                         # count of clusters where most points are labeled as in port
                         'clust_numb_where_most_points_labeled_as_in_ports': (
                             df_rollup['port_name_with_most_points'].count() -
-                            df_rollup['port_name_with_most_points'].value_counts()['NONE']),
+                            df_rollup['port_name_with_most_points'].value_counts()['NONE'])
                         # if this is less than one, means more than one port is near this cluster.
                        # 'average_ports_per_cluster':np.mean(df_rollup['counts_per_port']),
                         # how many positions are labeled in port.
@@ -309,7 +314,8 @@ for e in epsilons:
                         # ships are present.
                       #  'prop_were_top_mmsi >95%': len(df_rollup[df_rollup['top_mmsi_prop']>.95])/len(df_rollup),
                         # average number of mmsis per each cluster per run
-                        'average_mmsi_per_clust':(np.mean(df_rollup['mmsi_per_clust']))}
+                       # 'average_mmsi_per_clust':(np.mean(df_rollup['mmsi_per_clust']))
+                       }
        
         rollup_list.append(rollup_dict)
         
