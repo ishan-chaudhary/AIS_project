@@ -178,6 +178,25 @@ def parse_ais_SQL(file_name):
     c.close()
 
 #%% Populate ship_trips table from ship_postion table
+
+## Need to add ship type here.  Right now its added manually
+# alter table ship_trips 
+# add column ship_type text
+
+# --couldnt get this to work
+# insert into ship_trips (ship_type)
+# values (select ship_info.ship_type
+# from ship_info
+# join ship_trips
+# on ship_trips.mmsi = ship_info.mmsi)
+
+# --make new summary table
+# create table ship_summary as
+# select ship_info.mmsi, ship_info.ship_type,
+# ship_trips.position_count, ship_trips.line_length_km, ship_trips.time_diff
+# from ship_info, ship_trips
+# where ship_trips.mmsi = ship_info.mmsi
+
 def make_ship_trips():
     c = conn.cursor()
     c.execute("""DROP TABLE IF EXISTS ship_trips;""")
