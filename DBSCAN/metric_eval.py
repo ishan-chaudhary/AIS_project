@@ -11,8 +11,8 @@ import numpy as np
 
 
 #%% use this to reload data if needed
-path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/2020-04-24/'
-final_df = pd.read_csv(path+'summary_5k.csv')
+path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/2020-05-06/'
+final_df = pd.read_csv(path+'summary_5k.csv').set_index('params')
 #%% build some scatterplots
 import matplotlib.pyplot as plt
 #although not used, Axes3D is required
@@ -51,14 +51,16 @@ for f in features_for_plot:
 
 
 #%% Scaling
-key_features = ['average_max_dist_from_center', #minimize
+key_features = [#'average_max_dist_from_center', #minimize
                 'average_nearest_port_from_center', #minimize, high rank
-                'average_mmsi_per_clust', #maximise
+                #'average_mmsi_per_clust', #maximise
                 'prop_where_most_points_labeled_as_in_ports'] #maximize, high rank
 
 df = final_df[key_features]
 df['clust_numb_where_most_points_labeled_as_in_ports'] = (final_df['numb_clusters'] *
                                                           final_df['prop_where_most_points_labeled_as_in_ports'])
+
+
 
 from sklearn import preprocessing
 x = df.values #returns a numpy array
@@ -77,7 +79,7 @@ for m in minimized_metrics:
 df_scaled['average'] = df_scaled.mean(axis=1)
 df_scaled['weighted'] = ((df_scaled['average_max_dist_from_center'] * .1) +
                         (df_scaled['average_nearest_port_from_center'] * .2) +
-                        (df_scaled['average_mmsi_per_clust'] * .1) +
+                        #(df_scaled['average_mmsi_per_clust'] * .1) +
                         (df_scaled['prop_where_most_points_labeled_as_in_ports'] * .3) +
                         (df_scaled['clust_numb_where_most_points_labeled_as_in_ports'] * .3))
 
