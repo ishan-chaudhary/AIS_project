@@ -14,7 +14,8 @@ import psycopg2
 from sqlalchemy import create_engine
 
 #%%
-def postgres_dbscan(source_table, eps_km, min_samples, conn):
+def postgres_dbscan(source_table, eps_km, min_samples, conn, lat='lat', lon='lon',
+                    posit_id='id'):
 
     #this formulation will yield epsilon based on km desired
     kms_per_radian = 6371.0088
@@ -26,11 +27,12 @@ def postgres_dbscan(source_table, eps_km, min_samples, conn):
     print("""Starting processing on DBSCAN with eps_km={} and
           min_samples={} """.format(str(eps_km), str(min_samples)))
 
-    dbscan_sql = """CREATE TABLE IF NOT EXISTS {} AS
-    SELECT id, lat, lon,
-    ST_ClusterDBSCAN(Geometry(geog), eps := {}, minpoints := {})
+    dbscan_sql = """CREATE TABLE IF NOT EXISTS {0} AS
+    SELECT {1}, {2}, {3},
+    ST_ClusterDBSCAN(Geometry(geog), eps := {}, minpoints := {4})
     over () as clust_id
-    FROM {};""".format(new_table_name, str(eps), str(min_samples), source_table)
+    FROM {5};""".format(new_table_name, posit_id, lat, lon, str(eps), 
+    str(min_samples), source_table)
     # execute dbscan script
     c = conn.cursor()
     c.execute(dbscan_sql)

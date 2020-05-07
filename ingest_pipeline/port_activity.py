@@ -100,7 +100,7 @@ def create_port_activity_table(source_table, destination_table, dist, conn):
     print('Processing Done.  Total time elapsed: ', lapse)
 #%% Run query
 
-create_port_activity_table('ship_position_sample', 'port_activity_2k', 2000, loc_conn)
+create_port_activity_table('cargo_tanker_position', 'cargo_port_activity_2k', 2000, loc_conn)
 #%%
-create_port_activity_table('ship_position', 'port_activity_5k', 5000, loc_conn)
+#create_port_activity_table('ship_position', 'port_activity_5k', 5000, loc_conn)
 
