@@ -50,14 +50,14 @@ def df_to_table_with_geom(df, name, eps, min_samples, conn):
     conn.commit()
     c.close()
     # make a new table with the df
-    df.to_sql(new_table_name, loc_engine)
+    df.to_sql(new_table_name, loc_engine, index=False)
     # add a geom column to the new table and populate it from the lat and lon columns
     c = conn.cursor()
     c.execute("""ALTER TABLE {} ADD COLUMN 
                 geom geometry(Point, 4326);""".format(new_table_name))
     conn.commit()
     c.execute("""UPDATE {} SET 
-                geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);""".format(new_table_name))
+                geom = ST_SetSRID(ST_MakePoint(average_lon, average_lat), 4326);""".format(new_table_name))
     conn.commit()
     c.close()
 
@@ -225,8 +225,8 @@ path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/{}/'.fo
 if not os.path.exists(path):
     os.makedirs(path)
 
-epsilons = [2, 5, 7, 10, 15]
-samples = [50, 100, 250, 500]
+epsilons = [1, 2, 5, 7, 10]
+samples = [10, 25, 50, 100, 250, 500]
 for e in epsilons:
     for s in samples:      
         print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={} """.format(str(e), str(s)))
@@ -319,15 +319,34 @@ for e in epsilons:
        
         rollup_list.append(rollup_dict)
         
-        #df_to_table_with_geom(df_rollup, 'rollup', e, s, loc_conn)
+        df_to_table_with_geom(df_rollup, 'rollup', e, s, loc_conn)
         
         print('Finished with round ', len(rollup_list))
         print('')
+        
+
 #%% Make the final_df from the rollup and save to csv.
 final_df = pd.DataFrame(rollup_list).round(3)
 final_df['params'] = (final_df['eps_km'].astype('str') + '_' 
                       + final_df['min_samples'].astype('str'))
 final_df.set_index('params', inplace=True)
 final_df.to_csv(path+'summary_5k.csv')
+
+#%%
+port_sql = """select port_id, mmsi,
+	count(mmsi) as mmsi_count
+	from cargo_port_activity_5k
+	where port_id > 0
+	group by port_id, mmsi
+	order by port_id desc"""
+near_ports = pd.read_sql_query(port_sql, loc_engine)
+
+rollup = pd.read_sql('dbscan_results_by_mmsirollup_2_500',loc_engine)
+rollup['mmsi'] = rollup['clust_id'].str.split('_', expand=True)[0]
+#%%
+merged = pd.merge(near_ports[['port_id', 'mmsi']], rollup[['port_id_with_most_points', 'mmsi']],
+                  how='outer', left_on=['port_id', 'mmsi'], right_on=['port_id_with_most_points', 'mmsi'],
+                  indicator=True)
+
 
 
