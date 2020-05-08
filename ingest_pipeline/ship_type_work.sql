@@ -7,13 +7,20 @@ where ship_type IN (
 --tankers 4,688,096 positions, 1199 mmsi
 '80','81','82','83','84','85','86','87','88','89','1017','1024')
 
+create table cargo_mmsis as 
+SELECT distinct(mmsi)
+FROM ship_summary
+where ship_type IN (
+--cargo carriers 14,083,872 positions, 2842 mmsi
+'70','71','72','73','74','75','76','77','78','79','1003','1004','1016')
 
 
-create table cargo_tanker_position as 
+
+create table cargo_position as 
 SELECT *
 FROM ship_position
 where ship_position.mmsi IN (
-select * from cargo_tanker_mmsis)
+select * from cargo_mmsis)
 
 select count(*) from cargo_tanker_position
 select count(distinct(mmsi)) from cargo_tanker_position
@@ -61,3 +68,8 @@ order by sum DESC
 select * from ship_summary 
 where mmsi in (select * from cargo_tanker_mmsis)
 order by position_count desc
+
+--truncate cargo positions
+create table raw_cargo_position as 
+select mmsi, time, lat, lon
+from cargo_position

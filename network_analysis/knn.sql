@@ -23,6 +23,9 @@
     )
 	SELECT * from port_activity_reduced
 
+create table ship_position_1000 as
+select * from ship_position_sample
+limit 1000
 
 
 
@@ -46,21 +49,43 @@ create table ship_position_ports as
 with knn as (select posit.id, 
 	wpi.index_no as nearest_port_id, 
 	wpi.port_name as nearest_port_name, 
-	(ST_Distance(wpi.geog, posit.geog)/1000) AS nearest_port_dist_km
-	from ship_position as posit
+	(ST_Distance(wpi.geog::geometry, posit.geom)/1000) AS nearest_port_dist_km
+	from ship_position_1000 as posit
 	cross join lateral
 	(select wpi.index_no,
 	 wpi.port_name,
 	 wpi.geog
 	 from wpi
 	 order by
-	wpi.geog <-> posit.geog limit 1)
+	wpi.geom <-> posit.geom limit 1)
 	as wpi)
-select posit.id, mmsi, time, geog, lat, lon, 
-nearest_port_id, nearest_port_name, nearest_port_dist_km
+select posit.id, nearest_port_id, nearest_port_name, nearest_port_dist_km
 from knn
-join ship_position as posit
+join ship_position_1000 as posit
 on knn.id = posit.id
+where knn.nearest_port_dist_km < 5
+
+INSERT INTO ship_position_1000 (
+	nearest_port_id,
+	nearest_port_name,
+	nearest_port_dist_km)
+select knn.nearest_port_id, knn.nearest_port_name, knn.nearest_port_dist_km
+from (select posit.id, 
+	wpi.index_no as nearest_port_id, 
+	wpi.port_name as nearest_port_name, 
+	(ST_Distance(wpi.geog::geometry, posit.geom)/1000) AS nearest_port_dist_km
+	from ship_position_1000 as posit
+	cross join lateral
+	(select wpi.index_no,
+	 wpi.port_name,
+	 wpi.geog
+	 from wpi
+	 order by
+	wpi.geom <-> posit.geom limit 1)
+	as wpi) as knn
+join ship_position_1000 as posit
+on knn.id = posit.id
+where knn.nearest_port_dist_km < 5
 
 select count(* from ship_position_ports
 where nearest_port_dist_km < 5;
