@@ -90,3 +90,5 @@ print(df_scaled)
 print(df)
 
 df_scaled.round(3).to_csv('scaled_results.csv')
+
+#%% 

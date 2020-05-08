@@ -18,25 +18,13 @@ from sklearn.metrics.pairwise import haversine_distances
 import warnings
 warnings.filterwarnings('ignore')
 
-#%% Make and test conn and cursor using psycopg, 
-# and create an engine using sql alchemy
+# Geo-Spatial Temporal Analysis package
+import gsta
 
-database='ais_test'
-loc_conn = psycopg2.connect(host="localhost",database=database)
-c = loc_conn.cursor()
-if c:
-    print('Connection to {} is good.'.format(database))
-else:
-    print('Error connecting.')
-c.close()
-
-def create_loc_engine(database):
-    user = 'patrickmaus'
-    host = 'localhost'
-    port = '5432'
-    return create_engine('postgresql://{}@{}:{}/{}'.format(user, host, port, database))
-
-loc_engine = create_loc_engine('ais_test')
+aws_conn = gsta.connect_psycopg2(gsta.aws_ais_cluster_params)
+loc_conn = gsta.connect_psycopg2(gsta.loc_cargo_params)
+aws_conn.close()    
+loc_conn.close()
 
 #%% This function will be used to write results to the database
 def df_to_table_with_geom(df, name, eps, min_samples, conn):

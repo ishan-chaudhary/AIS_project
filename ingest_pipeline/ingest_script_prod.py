@@ -8,6 +8,7 @@ Created on Sun Dec 15 22:44:11 2019
 
 #db connections
 import psycopg2
+from sqlalchemy import create_engine
 
 #time tracking
 import datetime
@@ -20,30 +21,22 @@ import glob
 #import shutil
 #import os
 
-#choose db.  this is used for connections throughout the script
-database = 'ais_test'
+# Geo-Spatial Temporal Analysis package
+import gsta
+import gsta_config
+
+aws_conn = gsta.connect_psycopg2(gsta_config.aws_ais_cluster_params)
+loc_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+aws_conn.close()    
+loc_conn.close()
 
 
-
-#%% Make and test conn and cursor
-conn = psycopg2.connect(host="localhost",database=database)
-c = conn.cursor()
-if c:
-    print('Connection to {} is good.'.format(database))
-c.close()
-
-#%% Drop tables if needed
-def drop_table(table):
-    c = conn.cursor()
-    c.execute('drop table if exists {} cascade'.format(table))
-    conn.commit()
-    c.close()
 #%% drop other tables
 # Keep commented out unless we are re-ingesting everything.
-#drop_table('ship_info')
-#drop_table('ship_position')
-#drop_table('imported_ais')
-#drop_table('ship_trips')
+#gsta.drop_table('ship_info')
+#gsta.drop_table('ship_position')
+#gsta.drop_table('imported_ais')
+#gsta.drop_table('ship_trips')
 #%% start processing
 first_tick = datetime.datetime.now()
 
@@ -67,22 +60,12 @@ def function_tracker(function, function_name,
     log.close()
     
     print('Total Time elapsed: ', lapse)
-#%% dedupe table
-def dedupe_table(table):
-    c = conn.cursor()
-    c.execute("""CREATE TABLE tmp as 
-          (SELECT * from (SELECT DISTINCT * FROM {}) as t);""".format(table))
-    c.execute("""DELETE from {};""".format(table))
-    c.execute("""INSERT INTO {} SELECT * from tmp;""".format(table))
-    c.execute("""DROP TABLE tmp;""")
-    conn.commit()
-    c.close()
 
 #%% create an imported_ais table to hold each file as its read in
 c = conn.cursor()
 c.execute("""CREATE TABLE imported_ais (
   	mmsi 			text,
-	time		timestamp,
+    time     		timestamp,
 	lat				numeric,
 	lon				numeric,
 	sog				varchar,
@@ -90,7 +73,7 @@ c.execute("""CREATE TABLE imported_ais (
 	heading			varchar,
 	ship_name		text,
 	imo				varchar,
-	callsign		varchar,
+	callsign 		varchar,
 	ship_type		text,
 	status			varchar,
 	len				varchar,
@@ -115,12 +98,10 @@ c.close()
 
 #%% Create "ship_position" table in the  database.
 c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS ship_position
+c.execute("""CREATE TABLE IF NOT EXISTS cargo_ship_position
 (
-    id serial primary key,
     mmsi text,
     time timestamp,
-    geog geography,
     lat numeric,
     lon numeric
 );""")
@@ -128,8 +109,8 @@ conn.commit()
 
 c.execute("""CREATE INDEX ship_position_mmsi_idx on ship_position (mmsi);""")
 conn.commit()
-c.execute("""CREATE INDEX ship_position_geog_idx 
-          ON ship_position USING GIST (geog);""")
+c.execute("""CREATE INDEX ship_position_geom_idx 
+          ON ship_position USING GIST (geom);""")
 conn.commit()
 c.close()
 
@@ -137,7 +118,7 @@ c.close()
 
 wpi_csv_path = '/Users/patrickmaus/Documents/projects/AIS_project/WPI_data/wpi_clean.csv'
 
-def make_wpi(wpi_csv_path=wpi_csv_path):
+def make_wpi(conn, wpi_csv_path=wpi_csv_path):
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS wpi (
         	index_no		int,
@@ -156,6 +137,10 @@ def make_wpi(wpi_csv_path=wpi_csv_path):
         WITH (format csv, header);""".format(wpi_csv_path))
     conn.commit()
     c.close()
+    print('WPI created')
+    
+loc_cargo_conn = connect_psycopg2(loc_cargo_params)
+make_wpi(conn=loc_cargo_conn)
 #%% read in and parse the original file into new tables
 def parse_ais_SQL(file_name):
     c = conn.cursor()
