@@ -18,3 +18,4 @@ DBSCAN/report/ML1 Presentation.pdf
 .DS_Store
 DBSCAN/rollups/2020-04-25.zip
 ingest_pipeline/__pycache__/aws_credentials.cpython-37.pyc
+gsta_config.py alias
