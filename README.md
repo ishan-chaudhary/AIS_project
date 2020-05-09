@@ -58,18 +58,24 @@ The project has four major phases.
   - from sklearn.metrics.pairwise import haversine_distances
   - from sklearn.cluster import DBSCAN
 
+  Customized Modules
+  The analysis in this project uses functions from the gsta module, which stands for GeoSpatial Temporal Analysis module.  The gsta_config file is not share on the repo and stores server information including passwords and credentials.  This replaces the aws_credentials module.
+
 # Data Ingest, Cleaning, and Analysis
 
   The AIS data is large.  January 2017 data fro the US is 25 gigabytes.  The entire year could be about 300 gigabytes.  There are two options here.  The first is to put it all in the cloud with all the raw data and cleaned tables.  The second is to  store all csvs as zipped files, process and clean he data in chunks to a database, and create a summary for every vessel in the data.  Then, we can sample the raw positions and conduct cluster analysis on those samples.  Armed with our summary analysis of the entire data, we can then ensure that our samples are representative of different patterns.
 
-  We will first pursue the latter option, but may eventually use AWS to spin-up a PostGres instance.  
+  We will first pursue the latter option, but may eventually use AWS to spin-up a PostGres instance for the entire dataset.
 
   Current implementation (16 January 2020) uses a source directory as an input and iterates through all the csv files in that directory.  Future improvements can allow filtering based on month and zone.  Additionally, can eventually add a webscraper component.
 
 
 ## Ingest Pipeline Summary
-  First we create a new database (in prod it is the "AIS_data" database) and then build a Post GIS extension.  Then we run the python script "ingest_script_prod".  This script:
+  There are two options for ingesting data and building out our database tables.  The first is to use the ingest_SQL_script to manually create the tables, build indices, populate sample tables and build out the summary tables.  This works best for ingesting one csv, such as the sample of Cargo vessels used for much of this analysis.  For loading in multiple csvs, it will be more efficient to use the Python scrip ingest_script_prod.py.
 
+  In both versions, the sequencing is very similar.  
+
+  - Create a new database and then build a Post GIS extension.  
   - Creates a connection to the db
   - Drops any existing tables using a custom 'drop_table' function.  (Note, in prod the actual calls are commented out for safety.)
   - Creates a "dedupe_table" function for the ship_info table.
@@ -81,6 +87,8 @@ The project has four major phases.
 ## Reducing Raw position data to lines
   Unfortunately analysis against the entire corpus is difficult with limited compute.   However, we can reduce the raw positions of each ship into a line segment that connects each point together in the order of time.  Because there are sometimes gaps in coverage, a line will not follow the actual ships path and "jump".  The "make_ship_trips" function in the ingest pipeline uses geometry in PostGIS to connect all positions per ship, but this is not accurate as the coverage is not consistent.
 
+  We also will want to add ship_type into this table to assist in clustering later down the road.
+
 ## Analyze Summarized Ship trips
   Since we don't want to test all of our algorithm development against the entirety of the data, we need to select a sample of MMSI from the entire population to examine further.  The Jupyter Notebook "ships_trips_analysis" parses the ships_trips table and analyzes the fields.  We can use it to select a sample of MMSIs for further analysis.  The notebook builds several graphs and examines the summary of each MMSI's activity.  After filtering out MMSIs that don't travel far, have very few events, or travel around the globe in less than a month and are possible errors, the notebook exports a sample (250 now) to a csv file.  The notebook also writes the ship_trips sample to a new table, "ship_trips_sample" directly from the notebook using SQL Alchemy.
 
@@ -88,7 +96,7 @@ The project has four major phases.
   Python script "populate_sample" takes the csv output of the sample MMSIs from the Jupyter Notebook "ships_trips_analysis" and adds all positions from the "ship_position" table to a new "ship_position_sample" table.  It also makes a "ship_trips_sample" table from the full "ship_trips" table.
 
 ## Port Activity tables creation
-  Creates a table that includes all of a ship's position when the ship's positions are within X meters of a known port.  This table has all of these positions labeled with that port. We currently have 2k, 5k, and 10k.  This could all be collapsed to one table for space savings.
+  Creates a table that includes all of a ship's position when the ship's positions are within X meters of a known port.  This table has all of these positions labeled with that port. To accomplish this, we can either use the por
 
   The WPI dataset has  duplicate port locations.  Specifically, the exact same geos are used twice by two different named and indexed ports 13 times.  I naively dropped duplicates on the lat and lon columns to resolve.  No order is guaranteed, so this is a risk for reproducibility.  TODO: EIther order the drops in some way or record the 13 ports removed for documentation.
 
@@ -142,6 +150,12 @@ The project has four major phases.
   The metric_eval.py helps identify diagnostic metrics through 3D scatter plots and then can generate scaled, weighted final scores for each metric across runs.  This file does not write any output, but can produce tables or graphics as needed.
 
   The dbscan_sklearn_looped.py file contains initial work on optimizing Scikit-Learn's DBSCAN implementation.  This was abandoned (for now) because of Scikit-Learn's issues with the large data size.
+
+## Reworking DBSCAN by individual MMSI
+
+  If I can first cluster each ship with its own position data, we can eliminate false alarms by requiring multiple clusters of ships in the same area to cluster through running DBSCAN twice.  The second iteration of DBSCAN will cluster the clusters.  The key is to make the threshold for the first round low enough that it will detect likely ports frequently enough for there to be more than 2 clusters in the same location.  
+
+  As an added benefit, when we cluster the second round we can use a low number of MMSIs required per cluster and then use higher numbers to filter out likely false negatives.
 
 # Network Analysis
   First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.
