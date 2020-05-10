@@ -16,3 +16,8 @@ SELECT *, pg_size_pretty(total_bytes) AS total
 	      ORDER BY total_bytes DESC
   ) a
 ) a;
+
+--change working mem and shared buffer
+show shared_buffers
+show work_mem
+show effective_cache_size
