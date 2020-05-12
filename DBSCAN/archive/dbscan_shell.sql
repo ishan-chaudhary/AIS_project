@@ -69,3 +69,14 @@ WITH port_activity as (
 		ON (pa.mmsi = pos.mmsi) AND
 		(pa.time = pos.time) 
 		ORDER BY (pos.mmsi, pos.time);
+		
+		
+
+with dbscan as (	
+select 
+	id, mmsi, lat, lon,
+	ST_ClusterDBSCAN(geom, eps := .001, minpoints := 50) 
+	over () as clust_id
+	from ship_position_sample)
+SELECT * from dbscan 
+where dbscan.clust_id is not NULL
