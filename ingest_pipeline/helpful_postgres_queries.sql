@@ -17,6 +17,19 @@ SELECT *, pg_size_pretty(total_bytes) AS total
   ) a
 ) a;
 
+--lists indices
+SELECT
+    tablename,
+    indexname,
+    indexdef
+FROM
+    pg_indexes
+WHERE
+    schemaname = 'public'
+ORDER BY
+    tablename,
+    indexname;
+
 --change working mem and shared buffer
 show shared_buffers
 show work_mem
