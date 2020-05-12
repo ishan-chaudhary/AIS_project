@@ -8,10 +8,6 @@ Created on Thu Jan 16 14:14:56 2020
 
 import datetime
 
-# database management
-import psycopg2
-from sqlalchemy import create_engine
-
 # Geo-Spatial Temporal Analysis package
 import gsta
 import gsta_config
@@ -65,9 +61,16 @@ def create_port_activity_table(source_table, destination_table, dist, conn):
     conn.commit()
     c.close()
     
+    print('Table done...building index...')
+    index_sql = 'CREATE INDEX {0}_mmsi_idx on {0} (mmsi);'.format(destination_table)
+    c = conn.cursor()
+    c.execute(index_sql)
+    conn.commit()
+    c.close()
+    
     last_tock = datetime.datetime.now()
     lapse = last_tock - first_tick
-    print('Processing Done.  Total time elapsed: ', lapse)
+    print('All Processing Done.  Total time elapsed: ', lapse)
 #%% Run query
 loc_cargo_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 create_port_activity_table('cargo_ship_position', 'cargo_port_activity_5k', 5000, loc_cargo_conn)
