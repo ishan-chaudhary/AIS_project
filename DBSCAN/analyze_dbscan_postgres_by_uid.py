@@ -8,10 +8,6 @@ import os
 #time tracking
 import datetime
 
-# db admin
-import psycopg2
-from sqlalchemy import create_engine
-
 from sklearn.neighbors import BallTree
 from sklearn.metrics.pairwise import haversine_distances
 
@@ -21,28 +17,28 @@ warnings.filterwarnings('ignore')
 #%% Make and test conn and cursor using psycopg, 
 # and create an engine using sql alchemy
 
-database='ais_test'
-loc_conn = psycopg2.connect(host="localhost",database=database)
-c = loc_conn.cursor()
-if c:
-    print('Connection to {} is good.'.format(database))
-else:
-    print('Error connecting.')
-c.close()
+# Geo-Spatial Temporal Analysis package
+import gsta
+import gsta_config
 
-def create_loc_engine(database):
-    user = 'patrickmaus'
-    host = 'localhost'
-    port = '5432'
-    return create_engine('postgresql://{}@{}:{}/{}'.format(user, host, port, database))
+#aws_conn = gsta.connect_psycopg2(gsta_config.aws_ais_cluster_params)
+#loc_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+#aws_conn.close()    
+#loc_conn.close()
 
-loc_engine = create_loc_engine('ais_test')
+conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
+
+#%% variable delcaration
+schema_name = 'dbscan_results_2020_05_12'
+ports_near_positions = 'ports_5k_sample_positions'
+
 
 #%% This function will be used to write results to the database
-def df_to_table_with_geom(df, name, eps, min_samples, conn):
+def df_to_table_with_geom(df, name, eps_km, min_samples, schema_name, conn):
     # add the eps and min_samples value to table name
-    new_table_name = ('dbscan_results_by_mmsi' + name + '_' + 
-                      str(eps).replace('.','_') + '_' + str(min_samples))
+    new_table_name = ('by_mmsi_' + str(eps_km).replace('.','_') +
+                              '_' + str(min_samples))
     
     # drop table if an old one exists
     c = conn.cursor()
@@ -53,11 +49,11 @@ def df_to_table_with_geom(df, name, eps, min_samples, conn):
     df.to_sql(new_table_name, loc_engine, index=False)
     # add a geom column to the new table and populate it from the lat and lon columns
     c = conn.cursor()
-    c.execute("""ALTER TABLE {} ADD COLUMN 
-                geom geometry(Point, 4326);""".format(new_table_name))
+    c.execute("""ALTER TABLE {}.{} ADD COLUMN 
+                geom geometry(Point, 4326);""".format(schema_name,new_table_name))
     conn.commit()
-    c.execute("""UPDATE {} SET 
-                geom = ST_SetSRID(ST_MakePoint(average_lon, average_lat), 4326);""".format(new_table_name))
+    c.execute("""UPDATE {}.{} SET 
+                geom = ST_SetSRID(ST_MakePoint(average_lon, average_lat), 4326);""".format(schema_name,new_table_name))
     conn.commit()
     c.close()
 
@@ -106,116 +102,36 @@ def center_calc(df_results):
                       'max_dist_from_center': haver_result.max(),
                       'average_dist_from_center':np.mean(haver_result)}
         haver_list.append(haver_dict)
-        
-    haver_df = pd.DataFrame(haver_list)
     
+    # merge the haver results back to df_centers
+    haver_df = pd.DataFrame(haver_list)
     df_centers = pd.merge(df_centers, haver_df, how='left', on='clust_id')
+    
+    # create "total cluster count" column through groupby
+    clust_size = (df_results[['id','clust_id']]
+              .groupby('clust_id')
+              .count()
+              .reset_index()
+              .rename({'id':'total_clust_count'}, axis=1))
+    # merge results back to df_Centers
+    df_centers = pd.merge(df_centers, clust_size, how='left', on='clust_id')
     
     return df_centers
 
-
-def purity_calc(df_results):
-    """This function takes df_results and calculates how many points are near
-    the same port"""
-    
-    df_purity = pd.merge(df_results[['clust_id','id']], 
-                # df_port_activity is our full dataset, and when filtered to port_id>0
-                # it returns all positions identifed within a certain dist of a port
-                df_port_activity[df_port_activity['port_id'] > 0].loc[:,['id', 'port_name', 'port_id']], 
-                         how='left', on='id')
-    # we'll fill any nans with -1 for port id and NONE for port_name
-    df_purity['port_id'] = df_purity['port_id'].fillna(-1)
-    df_purity['port_name'] = df_purity['port_name'].fillna('NONE')
-    
-    # create "counts at port" column through groupby
-    df_purity_grouped = (df_purity
-                         .groupby(['clust_id', 'port_id','port_name'])
-                         .count()
-                         .reset_index()
-                         .rename({'id':'counts_at_port'}, axis=1))
-    # create "total cluster count" column through groupby
-    clust_size = (df_purity[['id','clust_id']]
-                  .groupby('clust_id')
-                  .count()
-                  .reset_index()
-                  .rename({'id':'total_clust_count'}, axis=1))
-    # group the dfs back so we have all columns
-    df_purity_grouped = pd.merge(df_purity_grouped, clust_size, 
-                                 how='left', on='clust_id')
-    # get the proportion of events near the top port
-    df_purity_grouped['proportion_near_top_port'] = (df_purity_grouped['counts_at_port'] 
-                                                     / df_purity_grouped['total_clust_count'])
-    
-    counts_per_port = df_purity_grouped.groupby('clust_id').size()
-    df_purity_grouped = pd.merge(df_purity_grouped, counts_per_port.rename('counts_per_port'), 
-                                 how='left', on='clust_id')
-    
-    df_purity_grouped_top = (df_purity_grouped
-                             .sort_values('proportion_near_top_port', ascending=False)
-                             .drop_duplicates('clust_id')
-                             .sort_values('clust_id')
-                             .rename({'port_id':'port_id_with_most_points',
-                                      'port_name':'port_name_with_most_points'}, axis=1))
-    
-    
-    return df_purity_grouped_top
-
-def composition_calc(table, source_table):
-    """
-    This function will get data about the mmsis that compose each cluster.
-    the first quey gets the counts by mmsi per each cluster.  
-    the second query will concat the strings of the mmsi name together and
-    return the total number of mmsis.
-    The final df will also contain the top mmsi by count and with its proportion.
-    """
-    get_counts_sql = """select clust_id, count(posit.mmsi) as mmsi_count
-                from {0} as results
-                join 
-                (select id, mmsi from {1}) as posit 
-                on (results.id=posit.id)
-                where clust_id >= 0
-                group by (clust_id, posit.mmsi)
-                order by clust_id, mmsi_count;""".format(table, source_table)
-    count_results = pd.read_sql_query(get_counts_sql, loc_engine)
-    
-    get_mmsi_sql = """select clust_id, 
-    string_agg(distinct(posit.mmsi), ',') as mmsis,
-    count(distinct(posit.mmsi)) as mmsi_per_clust
-    from {} as results
-    join 
-    (select id, mmsi from {1}) as posit 
-    on (results.id=posit.id)
-    group by (clust_id)
-    order by clust_id;""".format(table, source_table)
-    mmsi_results = pd.read_sql_query(get_mmsi_sql, loc_engine)
-    # group by clustr id to get the total number of events within each cluster.
-    grouped_comp = count_results.groupby('clust_id').sum()
-    # now find the top mmsi count by dropping any duplicates but the last one.
-    # since the sql quert oders by mmsi count, the last count will be the greatest.
-    grouped_comp['top_mmsi_count'] = (count_results
-                                      .drop_duplicates(subset='clust_id',keep='last')
-                                      .reset_index()
-                                      ['mmsi_count'])
-    # determine the top mmsi proportiton
-    grouped_comp['top_mmsi_prop'] = (grouped_comp['top_mmsi_count']/
-                                     grouped_comp['mmsi_count'])
-    # and finally merge with the mmsi results.
-    grouped_comp = pd.merge(grouped_comp, mmsi_results, left_index=True, 
-                            right_on='clust_id')
-    
-    return grouped_comp
+def calc_harmonic_mean(precision, recall):
+    return 2 *((precision*recall)/(precision+recall))
 
 #%% Read in required data
-# make a df with  port activity
-port_activity = 'cargo_port_activity_5k'
-df_port_activity = pd.read_sql(port_activity, loc_engine, 
-                    columns=['id', 'port_name','port_id'])
 
 #get all the ports from the world port index
 ports = pd.read_sql('wpi', loc_engine, columns=['index_no', 'port_name',
-                                                      'latitude','longitude'])
+                                                'latitude','longitude'])
 ports = ports.rename(columns={'latitude':'lat','longitude':'lon',
                               'index_no':'port_id'})
+
+# get the list of ports within 5k of all positions
+ports_5k = pd.read_sql_table(table_name=ports_near_positions, con=loc_engine,
+                             columns=['port_name', 'nearest_port_id', 'count'])
 
 #%% Run this code when we generate our own df_results from dbscan
 rollup_list = []
@@ -225,17 +141,22 @@ path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/{}/'.fo
 if not os.path.exists(path):
     os.makedirs(path)
 
-epsilons = [1, 2, 5, 7, 10]
-samples = [10, 25, 50, 100, 250, 500]
-for e in epsilons:
-    for s in samples:      
-        print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={} """.format(str(e), str(s)))
+epsilons_km = [.25, .5, 1, 2, 3, 5, 7]
+samples = [2, 5, 7, 10, 25, 50, 100, 250, 500]
+
+for eps_km in epsilons_km:
+    for min_samples in samples:   
+        print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={}"""
+              .format(str(eps_km), str(min_samples)))
         tick = datetime.datetime.now()
         
-        table = 'dbscan_results_cargo_by_mmsi_{}_{}'.format(str(e), str(s))
-        df_results = pd.read_sql(table, loc_engine, columns=['id', 'mmsi', 'lat','lon', 'clust_id'])
-        df_results.dropna(axis=0, how='any', inplace=True) 
-        
+        # make table name, and pull the results from the correct sql table.
+        table = ('by_mmsi_' + str(eps_km).replace('.','_') + '_' + str(min_samples))
+        df_results = pd.read_sql_table(table_name=table, con=loc_engine, schema=schema_name, 
+                                 columns=['id', 'mmsi', 'lat','lon', 'clust_id'])
+
+        # since we created clusters by mmsi, we are going to need to redefine 
+        # clust_id to include the mmsi and clust_id        
         df_results['clust_id'] = (df_results['mmsi'] + '_' + 
                                   df_results['clust_id'].astype(int).astype(str))
 
@@ -244,24 +165,11 @@ for e in epsilons:
         df_centers = center_calc(df_results)
         print('Finished distance calculations. ')
         
-        #Look at how many points are designated as near ports in the database
-        print('Starting purity calculations...')        
-        df_purity = purity_calc(df_results)
-        print('Finished purity calculations. ')
-        
-        #return details about the composition of mmsis in each cluster
-        #print('Starting compostion calculations...')        
-        #df_composition = composition_calc(table)
-        #print('Finished composition calculations. ')
-
         # roll up 
-        df_rollup = pd.merge(df_purity, df_centers, how='left', on='clust_id')
-        #df_rollup = pd.merge(df_rollup, df_composition, how='left', on='clust_id')
-        df_rollup['eps_km'] = e
-        df_rollup['s'] = s
-        
-        df_rollup.to_csv(path+'rollup_full_{}_{}.csv'.format(str(e), str(s)))
-        df_all_results = df_all_results.append(df_rollup)
+        df_rollup = df_centers
+        df_rollup['eps_km'] = eps_km
+        df_rollup['min_samples'] = min_samples
+        df_rollup.to_csv(path+'rollup_full_{}_{}.csv'.format(str(eps_km), str(min_samples)))
         
         #timekeeping
         tock = datetime.datetime.now()
@@ -269,13 +177,29 @@ for e in epsilons:
         print('All processing for this run complete.')
         print ('Time elapsed: {}'.format(lapse))
         
+        # determine the recall, precision, and f-measure
+        # drop all duplicates in the centers df to get just the unique port_ids
+        # join to the list of all ports within a set distance of positions
+        df_stats = pd.merge(df_centers.drop_duplicates('nearest_port_id'), 
+                            ports_5k[ports_5k['count'] > 0], how='outer', on='nearest_port_id', 
+                            indicator=True)        
+        # this df lists where the counts in the merge.
+        # left_only are ports only in the dbscan.  (false positives for dbscan)
+        # right_only are ports only in the ports near positions.  (false negatives for dbscan)
+        # both are ports in both datasets.  (true positives for dbscan)
+        values = (df_stats['_merge'].value_counts())
+        # recall is the proporation of relevant items selected
+        # it is the number of true positives divided by TP + FN
+        stats_recall = values['both']/(values['both']+values['right_only'])
+        # precision is the proportion of selected items that are relevant.
+        # it is the number of true positives our of all items selected by dbscan.
+        stats_precision = values['both']/len(df_centers.drop_duplicates('nearest_port_id'))
+        # now find the f_measure, which is the harmonic mean of precision and recall
+        stats_f_measure = calc_harmonic_mean(stats_precision, stats_recall)
+
         # the rollup dict contains multiple different metrics options.
-        # non-daignostic metrics are commented out but not deleted as they 
-        # may be helpful in other problems.
-        rollup_dict = {'eps_km':e, 'min_samples':s, 
-                       'params' : (str(e) + '_' + str(s)),
-                        #built for time tracking.  not required any longer
-                        #'time':lapse,
+        rollup_dict = {'eps_km':eps_km, 'min_samples':min_samples, 
+                       'params' : (str(eps_km) + '_' + str(min_samples)),
                         # number of clusters in the run
                         'numb_clusters':len(np.unique(df_rollup['clust_id'])),
                         # average positions per each cluster in each run
@@ -288,38 +212,15 @@ for e in epsilons:
                         'average_dist_from_center':np.mean(df_rollup['average_dist_from_center']),
                         'average_max_dist_from_center':np.mean(df_rollup['max_dist_from_center']),
                         
-                        # purity metrics
-                        # the proporition of clusters where the most points labeled near a port
-                        # a higher proportion suggests more accuracy.
-                        'prop_where_most_points_labeled_as_in_ports': 1-(df_rollup['port_name_with_most_points']
-                                                              .value_counts()['NONE']
-                                                              /len(df_rollup)),
-                        # count of clusters where most points are labeled as in port
-                        'clust_numb_where_most_points_labeled_as_in_ports': (
-                            df_rollup['port_name_with_most_points'].count() -
-                            df_rollup['port_name_with_most_points'].value_counts()['NONE'])
-                        # if this is less than one, means more than one port is near this cluster.
-                       # 'average_ports_per_cluster':np.mean(df_rollup['counts_per_port']),
-                        # how many positions are labeled in port.
-                       # 'average_counts_per_port':np.mean(df_rollup['counts_at_port']), 
-                        # proportion near top port.  Closer to 1, more homogenous.
-                       # 'average_prop_per_port':np.mean(df_rollup['proportion_near_top_port']),
-                        
-                        # composition metrics
-                        # the average proportion of the positions in a clusters made by top mmsi.
-                        # higher indicate homogenity.
-                      #  'average_top_mmsi_prop':np.mean(df_rollup['top_mmsi_prop']),
-                        # the proportion where the top mmsi in a cluster is more than 95% of all points.  
-                        # more hetrogenous clusters (less pure) could be helpful in idenitfying areas where many
-                        # ships are present.
-                      #  'prop_were_top_mmsi >95%': len(df_rollup[df_rollup['top_mmsi_prop']>.95])/len(df_rollup),
-                        # average number of mmsis per each cluster per run
-                       # 'average_mmsi_per_clust':(np.mean(df_rollup['mmsi_per_clust']))
-                       }
+                        # stats
+                        'f_measure':stats_f_measure,
+                        'precision':stats_precision,
+                        'recall':stats_recall
+                        }
        
         rollup_list.append(rollup_dict)
         
-        df_to_table_with_geom(df_rollup, 'rollup', e, s, loc_conn)
+        #df_to_table_with_geom(df_rollup, 'rollup', e, s, loc_conn)
         
         print('Finished with round ', len(rollup_list))
         print('')
@@ -331,22 +232,7 @@ final_df['params'] = (final_df['eps_km'].astype('str') + '_'
                       + final_df['min_samples'].astype('str'))
 final_df.set_index('params', inplace=True)
 final_df.to_csv(path+'summary_5k.csv')
-
 #%%
-port_sql = """select port_id, mmsi,
-	count(mmsi) as mmsi_count
-	from cargo_port_activity_5k
-	where port_id > 0
-	group by port_id, mmsi
-	order by port_id desc"""
-near_ports = pd.read_sql_query(port_sql, loc_engine)
-
-rollup = pd.read_sql('dbscan_results_by_mmsirollup_2_500',loc_engine)
-rollup['mmsi'] = rollup['clust_id'].str.split('_', expand=True)[0]
-#%%
-merged = pd.merge(near_ports[['port_id', 'mmsi']], rollup[['port_id_with_most_points', 'mmsi']],
-                  how='outer', left_on=['port_id', 'mmsi'], right_on=['port_id_with_most_points', 'mmsi'],
-                  indicator=True)
-
+print(final_df.sort_values('f_measure', ascending=False))
 
 
