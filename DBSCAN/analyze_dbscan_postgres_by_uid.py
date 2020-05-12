@@ -29,33 +29,6 @@ import gsta_config
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 
-#%% variable delcaration
-schema_name = 'dbscan_results_2020_05_12'
-ports_near_positions = 'ports_5k_sample_positions'
-
-
-#%% This function will be used to write results to the database
-def df_to_table_with_geom(df, name, eps_km, min_samples, schema_name, conn):
-    # add the eps and min_samples value to table name
-    new_table_name = ('by_mmsi_' + str(eps_km).replace('.','_') +
-                              '_' + str(min_samples))
-    
-    # drop table if an old one exists
-    c = conn.cursor()
-    c.execute("""DROP TABLE IF EXISTS {}""".format(new_table_name))
-    conn.commit()
-    c.close()
-    # make a new table with the df
-    df.to_sql(new_table_name, loc_engine, index=False)
-    # add a geom column to the new table and populate it from the lat and lon columns
-    c = conn.cursor()
-    c.execute("""ALTER TABLE {}.{} ADD COLUMN 
-                geom geometry(Point, 4326);""".format(schema_name,new_table_name))
-    conn.commit()
-    c.execute("""UPDATE {}.{} SET 
-                geom = ST_SetSRID(ST_MakePoint(average_lon, average_lat), 4326);""".format(schema_name,new_table_name))
-    conn.commit()
-    c.close()
 
 #%% center and purity calc functions
 def center_calc(df_results):
@@ -88,24 +61,24 @@ def center_calc(df_results):
     df_centers = pd.merge(df_centers, df_nearest, how='left', 
                           left_index=True, right_index=True)
     
-    # find the average distance from the centerpoint
-    # We'll calculate this by finding all of the distances between each point in 
-    # df_results and the center of the cluster.  We'll then take the min and the mean.
-    haver_list = []
-    for i in df_centers['clust_id']:
-        X = (np.radians(df_results[df_results['clust_id']==i]
-                        .loc[:,['lat','lon']].values))
-        Y = (np.radians(df_centers[df_centers['clust_id']==i]
-                        .loc[:,['average_lat','average_lon']].values))
-        haver_result = (haversine_distances(X,Y)) * 6371.0088 #km to radians
-        haver_dict = {'clust_id': i, 'min_dist_from_center': haver_result.min(), 
-                      'max_dist_from_center': haver_result.max(),
-                      'average_dist_from_center':np.mean(haver_result)}
-        haver_list.append(haver_dict)
+    # # find the average distance from the centerpoint
+    # # We'll calculate this by finding all of the distances between each point in 
+    # # df_results and the center of the cluster.  We'll then take the min and the mean.
+    # haver_list = []
+    # for i in df_centers['clust_id']:
+    #     X = (np.radians(df_results[df_results['clust_id']==i]
+    #                     .loc[:,['lat','lon']].values))
+    #     Y = (np.radians(df_centers[df_centers['clust_id']==i]
+    #                     .loc[:,['average_lat','average_lon']].values))
+    #     haver_result = (haversine_distances(X,Y)) * 6371.0088 #km to radians
+    #     haver_dict = {'clust_id': i, 'min_dist_from_center': haver_result.min(), 
+    #                   'max_dist_from_center': haver_result.max(),
+    #                   'average_dist_from_center':np.mean(haver_result)}
+    #     haver_list.append(haver_dict)
     
-    # merge the haver results back to df_centers
-    haver_df = pd.DataFrame(haver_list)
-    df_centers = pd.merge(df_centers, haver_df, how='left', on='clust_id')
+    # # merge the haver results back to df_centers
+    # haver_df = pd.DataFrame(haver_list)
+    # df_centers = pd.merge(df_centers, haver_df, how='left', on='clust_id')
     
     # create "total cluster count" column through groupby
     clust_size = (df_results[['id','clust_id']]
@@ -121,7 +94,36 @@ def center_calc(df_results):
 def calc_harmonic_mean(precision, recall):
     return 2 *((precision*recall)/(precision+recall))
 
+def calc_stats(df_rollup, ports_5k):
+        # determine the recall, precision, and f-measure
+        # drop all duplicates in the rollup df to get just the unique port_ids
+        # join to the list of all ports within a set distance of positions.
+        # the > count allows to filter out noise where only a handful of positions
+        # are near a given port.  Increasing this will increase recall because there
+        # are fewer "hard" ports to indetify with very little activity.
+        df_stats = pd.merge(df_rollup.drop_duplicates('nearest_port_id'), 
+                            ports_5k[ports_5k['count'] > 0], 
+                            how='outer', on='nearest_port_id', indicator=True)        
+        # this df lists where the counts in the merge.
+        # left_only are ports only in the dbscan.  (false positives for dbscan)
+        # right_only are ports only in the ports near positions.  (false negatives for dbscan)
+        # both are ports in both datasets.  (true positives for dbscan)
+        values = (df_stats['_merge'].value_counts())
+        # recall is the proporation of relevant items selected
+        # it is the number of true positives divided by TP + FN
+        stats_recall = values['both']/(values['both']+values['right_only'])
+        # precision is the proportion of selected items that are relevant.
+        # it is the number of true positives our of all items selected by dbscan.
+        stats_precision = values['both']/len(df_centers.drop_duplicates('nearest_port_id'))
+        # now find the f_measure, which is the harmonic mean of precision and recall
+        stats_f_measure = calc_harmonic_mean(stats_precision, stats_recall)
+        
+        return stats_f_measure, stats_precision, stats_recall
+
 #%% Read in required data
+# variable delcaration
+schema_name = 'dbscan_results_2020_05_12'
+ports_near_positions = 'ports_5k_positions'
 
 #get all the ports from the world port index
 ports = pd.read_sql('wpi', loc_engine, columns=['index_no', 'port_name',
@@ -145,13 +147,16 @@ epsilons_km = [.25, .5, 1, 2, 3, 5, 7]
 samples = [2, 5, 7, 10, 25, 50, 100, 250, 500]
 
 for eps_km in epsilons_km:
-    for min_samples in samples:   
+    for min_samples in samples:  
+
         print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={}"""
               .format(str(eps_km), str(min_samples)))
         tick = datetime.datetime.now()
         
         # make table name, and pull the results from the correct sql table.
         table = ('by_mmsi_' + str(eps_km).replace('.','_') + '_' + str(min_samples))
+        
+    
         df_results = pd.read_sql_table(table_name=table, con=loc_engine, schema=schema_name, 
                                  columns=['id', 'mmsi', 'lat','lon', 'clust_id'])
 
@@ -162,11 +167,15 @@ for eps_km in epsilons_km:
 
         #determine the cluster center point, and find the distance to nearest port
         print('Starting distance calculations... ')
-        df_centers = center_calc(df_results)
+        df_rollup = center_calc(df_results)
         print('Finished distance calculations. ')
         
+        # calculate dats
+        print('Starting stats calculations...')
+        stats_f_measure, stats_precision, stats_recall = calc_stats(df_rollup, ports_5k)
+        print("finished stats calculations.")
+        
         # roll up 
-        df_rollup = df_centers
         df_rollup['eps_km'] = eps_km
         df_rollup['min_samples'] = min_samples
         df_rollup.to_csv(path+'rollup_full_{}_{}.csv'.format(str(eps_km), str(min_samples)))
@@ -176,27 +185,7 @@ for eps_km in epsilons_km:
         lapse = tock - tick
         print('All processing for this run complete.')
         print ('Time elapsed: {}'.format(lapse))
-        
-        # determine the recall, precision, and f-measure
-        # drop all duplicates in the centers df to get just the unique port_ids
-        # join to the list of all ports within a set distance of positions
-        df_stats = pd.merge(df_centers.drop_duplicates('nearest_port_id'), 
-                            ports_5k[ports_5k['count'] > 0], how='outer', on='nearest_port_id', 
-                            indicator=True)        
-        # this df lists where the counts in the merge.
-        # left_only are ports only in the dbscan.  (false positives for dbscan)
-        # right_only are ports only in the ports near positions.  (false negatives for dbscan)
-        # both are ports in both datasets.  (true positives for dbscan)
-        values = (df_stats['_merge'].value_counts())
-        # recall is the proporation of relevant items selected
-        # it is the number of true positives divided by TP + FN
-        stats_recall = values['both']/(values['both']+values['right_only'])
-        # precision is the proportion of selected items that are relevant.
-        # it is the number of true positives our of all items selected by dbscan.
-        stats_precision = values['both']/len(df_centers.drop_duplicates('nearest_port_id'))
-        # now find the f_measure, which is the harmonic mean of precision and recall
-        stats_f_measure = calc_harmonic_mean(stats_precision, stats_recall)
-
+   
         # the rollup dict contains multiple different metrics options.
         rollup_dict = {'eps_km':eps_km, 'min_samples':min_samples, 
                        'params' : (str(eps_km) + '_' + str(min_samples)),
@@ -209,8 +198,8 @@ for eps_km in epsilons_km:
                         # closest port.  Closer the better.
                         'average_nearest_port_from_center':np.mean(df_rollup['nearest_port_dist']),
                         # average and max distance from cluster center.
-                        'average_dist_from_center':np.mean(df_rollup['average_dist_from_center']),
-                        'average_max_dist_from_center':np.mean(df_rollup['max_dist_from_center']),
+                        #'average_dist_from_center':np.mean(df_rollup['average_dist_from_center']),
+                        #'average_max_dist_from_center':np.mean(df_rollup['max_dist_from_center']),
                         
                         # stats
                         'f_measure':stats_f_measure,
@@ -219,9 +208,7 @@ for eps_km in epsilons_km:
                         }
        
         rollup_list.append(rollup_dict)
-        
-        #df_to_table_with_geom(df_rollup, 'rollup', e, s, loc_conn)
-        
+               
         print('Finished with round ', len(rollup_list))
         print('')
         
@@ -235,4 +222,7 @@ final_df.to_csv(path+'summary_5k.csv')
 #%%
 print(final_df.sort_values('f_measure', ascending=False))
 
-
+#%%
+print('Starting stats calculations...')
+stats_f_measure, stats_precision, stats_recall = calc_stats(df_rollup, ports_5k)
+print("finished stats calculations.")
