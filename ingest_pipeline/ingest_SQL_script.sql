@@ -45,6 +45,8 @@ FROM (
  --i used geom to calc distance instead of geog.  the knn should be fine but dist
  -- is wrong.
  --reworked 10 may.  reran, but still takes about 17 hours.
+ --need to make a sample of this still in prod
+ --need to add indicies in prod still
  create table ship_ports as
  with knn as (select posit.id, posit.mmsi, posit.time, posit.geom as ship_posit,
  	wpi.index_no as nearest_port_id,
@@ -62,3 +64,18 @@ FROM (
  from knn
  join ship_position_1000 as posit
  on knn.id = posit.id
+
+--returns all ports with the count of positions at that port within
+--specified distance (currently 5km)
+--need to make a sample of this still in prod
+create table ports_5k_positions as
+select
+	wpi.port_name,
+	ship_ports.nearest_port_id,
+	count(ship_ports.id),
+	wpi.geom
+from ship_ports as ship_ports, wpi
+where ship_ports.nearest_port_id=wpi.index_no
+and ship_ports.nearest_port_dist_km < 5
+group by (ship_ports.nearest_port_id, wpi.port_name, wpi.geom)
+order by count
