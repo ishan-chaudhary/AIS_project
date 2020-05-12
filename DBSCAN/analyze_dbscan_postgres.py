@@ -8,10 +8,6 @@ import os
 #time tracking
 import datetime
 
-# db admin
-import psycopg2
-from sqlalchemy import create_engine
-
 from sklearn.neighbors import BallTree
 from sklearn.metrics.pairwise import haversine_distances
 
