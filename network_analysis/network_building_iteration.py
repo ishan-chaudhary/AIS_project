@@ -1,5 +1,3 @@
-import psycopg2
-from sqlalchemy import create_engine
 import pandas as pd
 import datetime
 
@@ -17,7 +15,7 @@ conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 
 #%% variable delcaration
-port_activity_table = 'cargo_ship_position'
+port_activity_table = 'ship_ports'
 edge_table = 'cargo_edges'
 dist = 5
 #%% Function for executing SQL
@@ -34,8 +32,7 @@ def port_check(row):
         val = 0
     return val
 
-
-#%%
+#%% Create the edege table
 c = conn.cursor()
 #c.execute("""DROP TABLE IF EXISTS {};""".format(edge_table))
 conn.commit()
@@ -75,12 +72,18 @@ diff = lambda l1,l2: [x for x in l1 if x not in l2]
 mmsi_list = diff(mmsi_list_potential, mmsi_list_completed)
 #%% Get the df from the database
 
+## Current implementation mmsis like 316018616 that have all their 
+#activity at the same port.  this isnt bad, but since this mmsi has 41,000
+#positions it could be an area to speed up processing.
+
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 
-# define empty list
-edge_list = []
-run_count = 0
+# define empty list for troubleshooting
+#edge_list = []
+
+# run count = total mmsis already processed plus current batch
+run_count = len(mmsi_list_completed)
 
 for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
     # get the mmsi from the tuple
@@ -116,49 +119,37 @@ for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
         
         # if the port id's are different, the ship went from one area to another
         if  df['port_id'].iloc[idx] != df['port_id'].iloc[idx+1]:
-            
-            # The ship went from open ocean to a port or from port to open ocean.
-            # We don't want to log each one of these transitions.
-            if df['port_id'].iloc[idx] == 0 or df['port_id'].iloc[idx+1] == 0:
-                position_count += 1
+            # set the destination and arrival time to the values of this row.
+            # the origin and the depart time are from the previous round.
+            destination = df['port_id'].iloc[idx]
+            arrival_time = df['time'].iloc[idx]
+            position_count += 1
+           
+            #  add to a list
+            mmsi_edge_list.append([origin, destination, mmsi, depart_time, 
+                                    position_count, arrival_time])
 
-            # This case is when the ports are different and do not include 0.
-            # This is port-to-port activity we are looking for.
-            else:
-                destination = df['port_id'].iloc[idx]
-                arrival_time = df['time'].iloc[idx]
-                position_count += 1
-               
-                #  add to a list for easier debug
-                mmsi_edge_list.append([origin, destination, mmsi, depart_time, 
-                                        position_count, arrival_time])
-
-                # Update the origin and depart for the next iteration.
-                origin = df['port_id'].iloc[idx]    
-                depart_time = df['time'].iloc[idx]
-                position_count = 0
+            # Update the origin and depart for the next iteration.
+            origin = df['port_id'].iloc[idx]    
+            depart_time = df['time'].iloc[idx]
+            position_count = 0
         
         #this case covers when a vessel does not make any changes
         elif df['port_id'].iloc[idx] == df['port_id'].iloc[idx+1]:
             position_count += 1
-            
-            # this doesnt handle ships that visit a port and then head off to sea.
-            # need to finish.
-            
-        else: print ('something weird')
-        
+
         # make a df from the mmsi_edge_list, push to sql, and extend to edge_list
         mmsi_df = pd.DataFrame(mmsi_edge_list, columns=('origin', 'destination', 'mmsi',
                                                    'depart_time', 'position_count', 
                                                    'arrival_time'))
         mmsi_df.to_sql(name=edge_table, con=loc_engine, if_exists='append',
                        method='multi', index=False )
-        edge_list.extend(mmsi_edge_list)
+        #edge_list.extend(mmsi_edge_list)
     
     # increase the count
     run_count +=1
     # tracking will show how many mmsis have been processed and percentage complete.
-    percentage = ((run_count+len(mmsi_list_completed))/len(mmsi_list_potential)) * 100
+    percentage = (run_count/len(mmsi_list_potential)) * 100
     print('Completed {} MMSIs.  {} percent complete.'.format(run_count, round(percentage,2)))
 
 last_tock = datetime.datetime.now()
