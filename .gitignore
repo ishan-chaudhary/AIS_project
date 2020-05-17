@@ -19,3 +19,6 @@ DBSCAN/report/ML1 Presentation.pdf
 DBSCAN/rollups/2020-04-25.zip
 ingest_pipeline/__pycache__/aws_credentials.cpython-37.pyc
 gsta_config.py alias
+ingest_pipeline/tables/ship_ports.csv.zip
+ingest_pipeline/tables/raw_cargo_position.csv.zip
+ingest_pipeline/tables/ship_position.csv.zip
