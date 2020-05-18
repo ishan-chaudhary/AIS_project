@@ -5,13 +5,8 @@ import datetime
 import gsta
 import gsta_config
 
-aws_conn = gsta.connect_psycopg2(gsta_config.aws_ais_cluster_params)
-loc_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-aws_conn.close()    
-loc_conn.close()
 
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-
 loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 
 #%% variable delcaration

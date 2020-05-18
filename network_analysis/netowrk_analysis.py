@@ -11,6 +11,10 @@ import pandas as pd
 import datetime
 import networkx as nx
 
+# plotting
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 # Geo-Spatial Temporal Analysis package
 import gsta
 import gsta_config
@@ -18,9 +22,22 @@ import gsta_config
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 
-edge_df = pd.read_sql('cargo_edges', loc_engine)
+df_edges = pd.read_sql('cargo_edges', loc_engine)
 #%%
-G = nx.from_pandas_edgelist(edge_df, source='origin', target='destination',
+df_edges.to_csv('cargo_ship_edgelist.csv')
+#%% edge analysis
+sns.distplot(df_edges['position_count'])
+plt.show()
+sns.distplot(df_edges['time_delta'])
+plt.show()
+sns.distplot(df_edges['origin'])
+sns.distplot(df_edges['destination'])
+plt.show()
+#%%
+sns.pairplot(df_edges, vars=['position_count', 'time_delta'])
+
+#%%
+G = nx.from_pandas_edgelist(df_edges, source='origin', target='destination',
                              edge_attr=True)
 
 #%%
