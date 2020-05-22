@@ -11,7 +11,7 @@ loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 
 #%% variable delcaration
 port_activity_table = 'ship_ports'
-edge_table = 'cargo_edges'
+edge_table = 'cargo_edgelist'
 dist = 5
 #%% Function for executing SQL
 def execute_sql(SQL_string):
@@ -20,7 +20,7 @@ def execute_sql(SQL_string):
     conn.commit()
     c.close()
     
-def port_check(row):
+def port_check(row, dist=dist):
     if row['nearest_port_dist_km'] <=dist:
         val = row['nearest_port_id']
     else:
@@ -29,15 +29,17 @@ def port_check(row):
 
 #%% Create the edege table
 c = conn.cursor()
-#c.execute("""DROP TABLE IF EXISTS {};""".format(edge_table))
+c.execute("""DROP TABLE IF EXISTS {};""".format(edge_table))
 conn.commit()
 c.execute("""CREATE TABLE IF NOT EXISTS {}  (
-        origin              int, 
-        destination         int,
-        mmsi                text, 
+        node                int,
+        arrival_time        timestamp,
         depart_time         timestamp,
-        position_count      bigint, 
-        arrival_time        timestamp)         
+        time_diff           interval,
+        destination         int,
+        position_count      bigint,
+        mmsi                text
+        )         
 """.format(edge_table))
 conn.commit()
 c.close()
@@ -65,82 +67,66 @@ c.close()
 # find the mmsis that are not in the edge table yet
 diff = lambda l1,l2: [x for x in l1 if x not in l2]
 mmsi_list = diff(mmsi_list_potential, mmsi_list_completed)
-#%% Get the df from the database
-
-## Current implementation mmsis like 316018616 that have all their 
-#activity at the same port.  this isnt bad, but since this mmsi has 41,000
-#positions it could be an area to speed up processing.
-
+#%% iterate through the mmsi list and build the network edges
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
-
-# define empty list for troubleshooting
-#edge_list = []
 
 # run count = total mmsis already processed plus current batch
 run_count = len(mmsi_list_completed)
 
 for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
     # get the mmsi from the tuple
-    mmsi = mmsi_list[i][0]
+    mmsi = mmsi_list[i]
     
-    print('Working on MMSI:', mmsi)
+    print('Working on MMSI:', mmsi[0])
         
     # not efficent, but the easiest way to parse.  Largest number of positions
     # for all data is only about 40,000, so pandas can handle it
     df = pd.read_sql("""select time, nearest_port_id, nearest_port_dist_km 
-                     from {} 
-                     where mmsi = '{}' 
-                     order by time"""
-                     .format(port_activity_table, mmsi), loc_engine)
-    
+                     from {0} 
+                     where mmsi = '{1}'
+                     order by time""".format(port_activity_table, mmsi[0]), loc_engine)
+
     # port_check takes the dist to nearest port and if its less than dist, populates
     # port_id with the nearest port id.  If the nearest port is greater than dist,
     # port_id = 0.  0 will be used for activity "not in port"
-    df['port_id'] = df.apply(port_check, axis=1)
-  
-    # define our key variables to start the iteration.  
-    # Technically desitination and arrival time are not needed as they will
-    # be defined in the iteration, but they need to be reset here when 
-    # a new MMSI begins iteration.
-    origin = 9999 # unused port_id to repersent undefined port
-    depart_time = '2017-01-01T00:00:01' # could not insert a null
-    destination = df['port_id'].iloc[0]
-    arrival_time = df['time'].iloc[0] 
-    position_count = 0
+    df['node'] = df.apply(port_check, axis=1)
+    df.drop(['nearest_port_id', 'nearest_port_dist_km'], axis=1, inplace=True)
+    # use shift to get the next node and previous node
+    df['next_node'] = df['node'].shift(-1)
+    df['prev_node'] = df['node'].shift(1)
+    # reduce the dataframe down to only the positions where the previous node is
+    # different from the next node.  These are the transitions between nodes 
+    df_reduced = (df[df['next_node'] != df['prev_node']]
+                  .reset_index())
+    # make a df of all the starts and all the ends.  When the node is the same as
+    # the next node (but next node is different than previous node), its the start
+    # of actiivity at a node.  Similarly, when the node is the same as the previous
+    # node (but the next node is different than previous node), its the end of activity.
+    df_starts = (df_reduced[df_reduced['node'] == df_reduced['next_node']]
+                 .rename(columns={'time':'arrival_time'})
+                 .reset_index(drop=True))
+    df_ends = (df_reduced[df_reduced['node'] == df_reduced['prev_node']]
+               .rename(columns={'time':'depart_time'})
+               .reset_index(drop=True))
+    # now take all the pieces which have their indices reset and concat
+    df_final = (pd.concat([df_starts['node'], df_ends['next_node'], df_starts['arrival_time'], 
+                          df_ends['depart_time'], df_starts['index']], axis=1)
+                .rename(columns={'next_node':'destination'}))
     
-    for idx in (range(len(df)-1)):
-        mmsi_edge_list = []
-        
-        # if the port id's are different, the ship went from one area to another
-        if  df['port_id'].iloc[idx] != df['port_id'].iloc[idx+1]:
-            # set the destination and arrival time to the values of this row.
-            # the origin and the depart time are from the previous round.
-            destination = df['port_id'].iloc[idx]
-            arrival_time = df['time'].iloc[idx]
-            position_count += 1
-           
-            #  add to a list
-            mmsi_edge_list.append([origin, destination, mmsi, depart_time, 
-                                    position_count, arrival_time])
-
-            # Update the origin and depart for the next iteration.
-            origin = df['port_id'].iloc[idx]    
-            depart_time = df['time'].iloc[idx]
-            position_count = 0
-        
-        #this case covers when a vessel does not make any changes
-        elif df['port_id'].iloc[idx] == df['port_id'].iloc[idx+1]:
-            position_count += 1
-
-        # make a df from the mmsi_edge_list, push to sql, and extend to edge_list
-        mmsi_df = pd.DataFrame(mmsi_edge_list, columns=('origin', 'destination', 'mmsi',
-                                                   'depart_time', 'position_count', 
-                                                   'arrival_time'))
-        mmsi_df.to_sql(name=edge_table, con=loc_engine, if_exists='append',
+    # add in a time difference column.  cast to str because postgres doesnt like
+    # pandas time intervals
+    df_final['time_diff'] = (df_final['depart_time'] - df_final['arrival_time']).astype('str')
+    
+    # find the position count by subtracting the current index from the 
+    # shifted index of the next row
+    df_final['position_count'] = df_final['index'].shift(-1) - df_final['index']
+    df_final.drop('index', axis=1, inplace=True)
+    # add the mmsi we are working with to the pandas df
+    df_final['mmsi'] = mmsi[0]
+    # write back to the database
+    df_final.to_sql(name=edge_table, con=loc_engine, if_exists='append',
                        method='multi', index=False )
-        #edge_list.extend(mmsi_edge_list)
-    
     # increase the count
     run_count +=1
     # tracking will show how many mmsis have been processed and percentage complete.
@@ -152,3 +138,48 @@ lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 
 
+
+#%% old working sample
+
+
+# #%%
+#     df['port_id'] = df.apply(port_check, axis=1)
+
+#     # set the initial conidtions and make an empty list
+#     node = df['port_id'].iloc[0]
+#     arrival_time = df['time'].iloc[0] 
+#     position_count = 0 
+#     mmsi_edge_list = []
+#     # iterate through all the rows, except for the last
+#     for idx in (range(len(df)-1)):
+#         # if the port id's are different, the ship went from one area to another
+#         if  df['port_id'].iloc[idx] != df['port_id'].iloc[idx+1]:
+#             # capture the depart time and the destination to add to the node of interest
+#             # and arrival time already set
+#             depart_time = df['time'].iloc[idx] 
+#             destination = df['port_id'].iloc[idx+1]
+#             position_count += 1
+           
+#             #  add to a list
+#             mmsi_edge_list.append([node, arrival_time, depart_time, destination, 
+#                                     position_count, mmsi[0]])
+#             print([node, arrival_time, depart_time, destination, 
+#                                     position_count, mmsi[0]])
+#             node = df['port_id'].iloc[idx+1]
+#             arrival_time = df['time'].iloc[idx+1]
+#             position_count = 0
+        
+#         #this case covers when a vessel does not make any changes
+#         elif df['port_id'].iloc[idx] == df['port_id'].iloc[idx+1]:
+#             position_count += 1
+    
+#         # make a df from the mmsi_edge_list, push to sql, and extend to edge_list
+#         mmsi_df = pd.DataFrame(mmsi_edge_list, columns=['node', 'arrival_time', 'depart_time',
+#                                                         'destination', 'position_count', 'mmsi'])
+#         # determine the time diff
+#         #mmsi_df['time_diff'] = mmsi_df['depart_time'] - mmsi_df['arrival_time']
+    
+#         mmsi_df.to_sql(name=edge_table, con=loc_engine, if_exists='append',
+#                    method='multi', index=False )
+#         #edge_list.extend(mmsi_edge_list)
+    
