@@ -64,14 +64,15 @@ for eps_km in epsilons_km:
 
 #%% Execute second round of DBSCAN
 second_round_df = pd.DataFrame()
-for p in second_round_params:
+for p in first_round_params:
     
     #break out the eps and min samples from the list
     eps_km, min_samples = p
     # create the second round schema
-    second_round_schema = gsta.create_schema('sklearn_sample_second_rnd' + str(eps_km).replace('.','_')
-                                       + '_' + str(min_samples),
-                                       conn, drop_schema=True, with_date=False)  
+    second_round_schema = gsta.create_schema('sklearn_sample_second_rnd' + '_' 
+                                             + str(eps_km).replace('.','_')
+                                             + '_' + str(min_samples),
+                                             conn, drop_schema=True, with_date=False)  
     # define the source table, which will change for each iteration of params
     source_table = ('summary_' + str(eps_km).replace('.','_') +
                     '_' + str(min_samples))
@@ -92,8 +93,7 @@ for p in second_round_params:
     # some of the params are none because they had zero clusters.  
     # try converting to string.  if fail, pass.
     try:
-        df['first_round_params'] = (df['eps_km'].astype('str') + '_'
-                          + df['min_samples'].astype('str'))
+        df['first_round_params'] = (str(p[0]) + '_' + str(p[1]))
     except: pass
     second_round_df = second_round_df.append(df)
     
