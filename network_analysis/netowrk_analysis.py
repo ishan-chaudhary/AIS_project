@@ -56,7 +56,8 @@ df_list.columns = ['Source_id', 'Source', 'Target_id', 'Target',
 df_list = (df_list[df_list['mmsi']==df_list['target_mmsi']]
            .drop('target_mmsi', axis=1))
 # this filters ou self-loops
-df_list = df_list[df_list['Source_id']!=df_list['Target_id']]
+df_edgelist_full = df_list[df_list['Source_id']!=df_list['Target_id']]
+df_edgelist_full.to_csv('edgelist_full.csv', index=False)
 
 #%% make a summary of ports visited for each vessel
 df_trips = (df_list.reset_index(drop=True))
@@ -76,20 +77,77 @@ df_grouped_trips['trip_lengh'] = df_grouped_trips['trips'].apply(len)
 
 # groupby the source/target id/name, count all the rows, drop the time fields,
 # rename the remaining column from mmsi to weight, and rest the index
-df_edgelist = (df_list.groupby(['Source_id', 'Source', 
+df_edgelist_weighted = (df_list.groupby(['Source_id', 'Source', 
                                 'Target_id', 'Target'])
               .count()
               .drop(['source_depart', 'target_arrival'], axis=1)
               .rename(columns={'mmsi':'weight'})
               .reset_index())
-df_edgelist.to_csv('edgelistV2.csv', index=False)
+#df_edgelist.to_csv('edgelistV2.csv', index=False)
 #%%
-#wpi = pd.read_csv('wpi_clean.csv')
+mmsi = '230185000'
+mmsi_edgelist = df_edgelist_full[df_edgelist_full['mmsi'] == mmsi]
+G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', 
+                            target='Target', edge_attr=True)
+
 #%%
-G = nx.from_pandas_edgelist(df_edgelist, source='source_name', 
-                            target='target_name', edge_attr=True)
+#print(len(df_edgelist_weighted[df_edgelist_weighted['weight']>1]))
+plt.figure(figsize=(10,10)) 
+G=nx.MultiDiGraph()
+for row in (df_edgelist_weighted
+            .sort_values(by='weight', ascending=False)
+            .iloc[:500]
+            .iterrows()):
+    G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
+    
+pos=nx.spring_layout(G) # positions for all nodes
+
+# nodes
+nx.draw_networkx_nodes(G,pos,node_size=70)
+
+# edges
+nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
+
+# labels
+nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
+
+plt.axis('off')
+
+plt.savefig("weighted_graph.png") # save as png
+plt.show() # display
+
+
+
+
+
+#%%
+plt.figure(figsize=(10,10)) 
+G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source', 
+                            target='Target', edge_attr=True, 
+                            create_using=nx.MultiDiGraph)
 print(G.number_of_edges())
 print(type(G))
+
+pos=nx.spring_layout(G) # positions for all nodes
+
+# nodes
+nx.draw_networkx_nodes(G,pos,node_size=70)
+
+# edges
+nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
+
+# labels
+nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
+#%%
+#print(nx.degree_centrality(G))
+print(list(G.neighbors('LONG BEACH')))
+#adj = nx.adjacency_matrix(G)
+total = 0
+markov = {}
+for n in G['LONG BEACH']:
+    total = total + (G['LONG BEACH'][n][0]['weight'])
+for n in G['LONG BEACH']:
+     markov[n] = round((G['LONG BEACH'][n][0]['weight']/total),3)
 #%%
 nx.draw_circular(G)
 #%%
