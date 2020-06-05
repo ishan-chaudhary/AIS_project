@@ -11,7 +11,9 @@ import gsta
 import gsta_config
 import pandas as pd
 
-import warnings
+#pandas and postgres time interval types dont mesh well so every read_table
+#call returns a warning
+import warnings 
 warnings.filterwarnings('ignore')
 
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
@@ -33,7 +35,7 @@ for eps_km in epsilons_km:
     for min_samples in samples: 
         first_round_params.append([eps_km, min_samples])
 
-# make the new schema for todays date and the method.
+# make the new schema the method.
 first_round_schema_name = gsta.create_schema('sklearn_sample_first_rnd', conn, drop_schema=True, with_date=False)  
 
                    
