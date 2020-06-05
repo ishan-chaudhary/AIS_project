@@ -84,11 +84,14 @@ df_edgelist_weighted = (df_list.groupby(['Source_id', 'Source',
               .rename(columns={'mmsi':'weight'})
               .reset_index())
 #df_edgelist.to_csv('edgelistV2.csv', index=False)
+
+print(len(df_edgelist_weighted[df_edgelist_weighted['weight']<2]))
 #%%
 mmsi = '230185000'
 mmsi_edgelist = df_edgelist_full[df_edgelist_full['mmsi'] == mmsi]
 G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', 
                             target='Target', edge_attr=True)
+
 
 #%%
 #print(len(df_edgelist_weighted[df_edgelist_weighted['weight']>1]))
@@ -101,21 +104,35 @@ for row in (df_edgelist_weighted
     G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
     
 pos=nx.spring_layout(G) # positions for all nodes
-
 # nodes
 nx.draw_networkx_nodes(G,pos,node_size=70)
-
 # edges
 nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
-
 # labels
 nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
-
 plt.axis('off')
-
-plt.savefig("weighted_graph.png") # save as png
+#plt.savefig("weighted_graph.png") # save as png
 plt.show() # display
 
+#%%
+source = 'OAKLAND'
+
+plt.figure(figsize=(10,10)) 
+G=nx.MultiDiGraph()
+for row in (df_edgelist_weighted[df_edgelist_weighted['Source']==source]
+            .iterrows()):
+    G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
+    
+pos=nx.spring_layout(G) # positions for all nodes
+# nodes
+nx.draw_networkx_nodes(G,pos,node_size=70)
+# edges
+nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
+# labels
+nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
+plt.axis('off')
+#plt.savefig("weighted_graph.png") # save as png
+plt.show() # display
 
 
 
@@ -140,19 +157,19 @@ nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
 nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
 #%%
 #print(nx.degree_centrality(G))
-print(list(G.neighbors('LONG BEACH')))
+#print(list(G.neighbors('LONG BEACH')))
 #adj = nx.adjacency_matrix(G)
-total = 0
-markov = {}
-for n in G['LONG BEACH']:
-    total = total + (G['LONG BEACH'][n][0]['weight'])
-for n in G['LONG BEACH']:
-     markov[n] = round((G['LONG BEACH'][n][0]['weight']/total),3)
-#%%
-nx.draw_circular(G)
-#%%
-nx.draw_kamada_kawai(G)
-#%%
 
-pos = nx.circular_layout(G)
-plt.show()
+markov = {}
+for port in G.nodes:
+    total = 0
+    port_markov = {}
+    for n in G[port]:
+        total = total + (G[port][n][0]['weight'])
+        print(n, G[port][n][0]['weight'])
+    for n in G[port]:
+         port_markov[n] = round((G[port][n][0]['weight']/total),3)
+    markov[port] = port_markov
+     
+print(markov)
+df_markov = pd.DataFrame(markov)
