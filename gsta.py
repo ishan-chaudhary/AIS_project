@@ -401,7 +401,8 @@ def df_to_table_with_geom(df, rollup_table_name, schema_name, conn, engine):
     conn.commit()
     c.close()
 
-def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled, eps_samples_params, id_value, clust_id_value):
+def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled,
+eps_samples_params, id_value, clust_id_value, noise_filter):
     rollup_list = []
     path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/{}/'.format(schema_name)
     if not os.path.exists(path): os.makedirs(path)
@@ -435,7 +436,7 @@ def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled, eps_sa
             continue
         # calculate stats
         print('Starting stats calculations...')
-        stats_f_measure, stats_precision, stats_recall = calc_stats(df_rollup, ports_labeled, engine, noise_filter=1000)
+        stats_f_measure, stats_precision, stats_recall = calc_stats(df_rollup, ports_labeled, engine, noise_filter=noise_filter)
         print("finished stats calculations.")
         # roll up written to csv and to table
         df_rollup['eps_km'] = eps_km
@@ -461,9 +462,6 @@ def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled, eps_sa
                         'precision':stats_precision,
                         'recall':stats_recall}
         rollup_list.append(rollup_dict)
-        print(rollup_dict['f_measure'])
-        print(rollup_dict['precision'])
-        print(rollup_dict['recall'])
 
         #timekeeping
         tock = datetime.datetime.now()
@@ -481,6 +479,6 @@ def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled, eps_sa
     #timekeeping
     tock = datetime.datetime.now()
     lapse = tock - outer_tick
-    print('All processing for complete.  Data written to schema'.format(schema_name))
+    print('All processing for complete.  Data written to schema {}'.format(schema_name))
     print ('Time elapsed: {}'.format(lapse))
     return final_df
