@@ -88,10 +88,34 @@ df_edgelist_weighted = (df_list.groupby(['Source_id', 'Source',
 print(len(df_edgelist_weighted[df_edgelist_weighted['weight']<2]))
 #%%
 mmsi = '230185000'
-mmsi_edgelist = df_edgelist_full[df_edgelist_full['mmsi'] == mmsi]
-G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', 
-                            target='Target', edge_attr=True)
+mmsi_edgelist = df_edgelist_full[df_edgelist_full['mmsi'] == mmsi].reset_index(drop=True)
+# set source and target for each node to include the data
+#mmsi_edgelist['Source'] = mmsi_edgelist['Source'] + ' : ' + mmsi_edgelist['source_depart'].astype('str')
+#mmsi_edgelist['Target'] = mmsi_edgelist['Target'] + ' : ' + mmsi_edgelist['target_arrival'].astype('str')
 
+plt.figure(figsize=(10,10)) 
+
+# build the graph
+G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', target='Target')
+# get positions for all nodes
+pos=nx.spring_layout(G) 
+# adjust the node lable position up by .1 so self loop labels are separate
+node_label_pos = {}
+for k,v in pos.items():
+    node_label_pos[k] = np.array([v[0], v[1]+.1])
+
+# draw nodes
+nx.draw_networkx_nodes(G,pos)
+# draw node labels
+nx.draw_networkx_labels(G,node_label_pos,font_size=10)
+# edges
+nx.draw_networkx_edges(G,pos,alpha=0.5,width=weights)
+
+
+
+# plot the title and turn off the axis
+plt.title('Network Plot for MMSI {}'.format(str(mmsi).title()))
+plt.axis('off')
 
 #%%
 #print(len(df_edgelist_weighted[df_edgelist_weighted['weight']>1]))
@@ -104,6 +128,7 @@ for row in (df_edgelist_weighted
     G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
     
 pos=nx.spring_layout(G) # positions for all nodes
+
 # nodes
 nx.draw_networkx_nodes(G,pos,node_size=70)
 # edges
@@ -115,29 +140,48 @@ plt.axis('off')
 plt.show() # display
 
 #%%
-source = 'OAKLAND'
 
-plt.figure(figsize=(10,10)) 
-G=nx.MultiDiGraph()
-for row in (df_edgelist_weighted[df_edgelist_weighted['Source']==source]
-            .iterrows()):
-    G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
-    
-pos=nx.spring_layout(G) # positions for all nodes
-# nodes
-nx.draw_networkx_nodes(G,pos,node_size=70)
-# edges
-nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
-# labels
-nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
-plt.axis('off')
-#plt.savefig("weighted_graph.png") # save as png
-plt.show() # display
-
-
-
-
+def plot_from_source(source, df):
+    # create the figure plot
+    plt.figure(figsize=(8,6)) 
+    # get a df with just the source port as 'Source'
+    df_g = df[df['Source']==source.upper()] # use upper to make sure fits df
+    # build the network
+    G = nx.from_pandas_edgelist(df_g, source='Source', 
+                                target='Target', edge_attr='weight', 
+                                create_using=nx.MultiDiGraph)
+    # get positions for all nodes
+    pos=nx.spring_layout(G) 
+    # adjust the node lable position up by .1 so self loop labels are separate
+    node_label_pos = {}
+    for k,v in pos.items():
+        node_label_pos[k] = np.array([v[0], v[1]+.1])
+    # get edge weights as dictionary
+    weights = [i['weight'] for i in dict(G.edges).values()]
+    #  draw nodes
+    nx.draw_networkx_nodes(G,pos)
+    # draw node labels
+    nx.draw_networkx_labels(G,node_label_pos,font_size=10,font_family='sans-serif')
+    # edges
+    nx.draw_networkx_edges(G,pos,alpha=0.5,width=weights)
+    # plot the title and turn off the axis
+    plt.title('Weighted Network Plot for {} Port as Source'.format(source.title()),
+              fontsize=16)
+    plt.axis('off')
+    # make a test boc for the weights.  Can be plotted on edge, but crowded
+    box_str = 'Weights out from {}: \n'.format(source.title())
+    for neighbor, values in G[source.upper()].items():
+        box_str = (box_str + neighbor.title() + ' - ' + 
+        str(values[0]['weight']) + '\n' )
+    plt.text(-1,-1, box_str, fontsize=12, 
+             verticalalignment='top', horizontalalignment='left')    
+    #plt.savefig("weighted_graph.png") # save as png
+    plt.show() # display
 #%%
+plot_from_source('Tacoma', df_edgelist_weighted)
+
+
+#%% Plot the whole network
 plt.figure(figsize=(10,10)) 
 G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source', 
                             target='Target', edge_attr=True, 
