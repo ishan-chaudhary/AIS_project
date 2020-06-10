@@ -13,7 +13,6 @@ import networkx as nx
 
 # plotting
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 # Geo-Spatial Temporal Analysis package
 import gsta
@@ -79,65 +78,59 @@ df_grouped_trips['trip_lengh'] = df_grouped_trips['trips'].apply(len)
 # rename the remaining column from mmsi to weight, and rest the index
 df_edgelist_weighted = (df_list.groupby(['Source_id', 'Source', 
                                 'Target_id', 'Target'])
-              .count()
-              .drop(['source_depart', 'target_arrival'], axis=1)
-              .rename(columns={'mmsi':'weight'})
-              .reset_index())
-#df_edgelist.to_csv('edgelistV2.csv', index=False)
+                              .count()
+                              .drop(['source_depart', 'target_arrival'], axis=1)
+                              .rename(columns={'mmsi':'weight'})
+                              .reset_index())
 
 print(len(df_edgelist_weighted[df_edgelist_weighted['weight']<2]))
+
+
 #%%
+
+def plot_mmsi(mmsi):
+    mmsi_edgelist = df_edgelist_full[df_edgelist_full['mmsi'] == mmsi].reset_index(drop=True)
+    mmsi_edgelist = mmsi_edgelist[['Source', 'source_depart', 'Target', 'target_arrival']]
+
+    # build the graph
+    G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', target='Target',
+                                edge_attr=True, create_using=nx.MultiDiGraph)
+    # get positions for all nodes
+    pos=nx.spring_layout(G)
+
+    # draw the network
+    plt.figure(figsize=(6,6))
+    # draw nodes
+    nx.draw_networkx_nodes(G,pos)
+    # draw node labels
+    nx.draw_networkx_labels(G,pos,font_size=10)
+    # edges
+    nx.draw_networkx_edges(G,pos,alpha=0.5)
+
+    # add a buffer to the x margin to keep labels from being printed out of margin
+    x_values, y_values = zip(*pos.values())
+    x_max = max(x_values)
+    x_min = min(x_values)
+    x_margin = (x_max - x_min) * 0.25
+    plt.xlim(x_min - x_margin, x_max + x_margin)
+
+    # plot the title and turn off the axis
+    plt.title(f'Network Plot for MMSI {str(mmsi).title()}')
+    plt.axis('off')
+    plt.show()
+
+    print(mmsi_edgelist)
+
 mmsi = '230185000'
-mmsi_edgelist = df_edgelist_full[df_edgelist_full['mmsi'] == mmsi].reset_index(drop=True)
-# set source and target for each node to include the data
-#mmsi_edgelist['Source'] = mmsi_edgelist['Source'] + ' : ' + mmsi_edgelist['source_depart'].astype('str')
-#mmsi_edgelist['Target'] = mmsi_edgelist['Target'] + ' : ' + mmsi_edgelist['target_arrival'].astype('str')
-
-plt.figure(figsize=(10,10)) 
-
-# build the graph
-G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', target='Target')
-# get positions for all nodes
-pos=nx.spring_layout(G) 
-# adjust the node lable position up by .1 so self loop labels are separate
-node_label_pos = {}
-for k,v in pos.items():
-    node_label_pos[k] = np.array([v[0], v[1]+.1])
-
-# draw nodes
-nx.draw_networkx_nodes(G,pos)
-# draw node labels
-nx.draw_networkx_labels(G,node_label_pos,font_size=10)
-# edges
-nx.draw_networkx_edges(G,pos,alpha=0.5,width=weights)
-
-
-
-# plot the title and turn off the axis
-plt.title('Network Plot for MMSI {}'.format(str(mmsi).title()))
-plt.axis('off')
+plot_mmsi(mmsi)
 
 #%%
-#print(len(df_edgelist_weighted[df_edgelist_weighted['weight']>1]))
-plt.figure(figsize=(10,10)) 
-G=nx.MultiDiGraph()
-for row in (df_edgelist_weighted
-            .sort_values(by='weight', ascending=False)
-            .iloc[:500]
-            .iterrows()):
-    G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
-    
-pos=nx.spring_layout(G) # positions for all nodes
+sample_mmsi = df_edgelist_full['mmsi'].sample().values[0]
+print(sample_mmsi)
+plot_mmsi(sample_mmsi)
 
-# nodes
-nx.draw_networkx_nodes(G,pos,node_size=70)
-# edges
-nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
-# labels
-nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
-plt.axis('off')
-#plt.savefig("weighted_graph.png") # save as png
-plt.show() # display
+
+
 
 #%%
 
@@ -177,9 +170,15 @@ def plot_from_source(source, df):
              verticalalignment='top', horizontalalignment='left')    
     #plt.savefig("weighted_graph.png") # save as png
     plt.show() # display
-#%%
+
+
+
 plot_from_source('Tacoma', df_edgelist_weighted)
 
+#%%
+sample_source = df_edgelist_full['Source'].sample().values[0]
+print(sample_source)
+plot_from_source(sample_source, df_edgelist_weighted)
 
 #%% Plot the whole network
 plt.figure(figsize=(10,10)) 
@@ -199,6 +198,31 @@ nx.draw_networkx_edges(G,pos,alpha=0.5,edge_color='b')
 
 # labels
 nx.draw_networkx_labels(G,pos,font_size=10,font_family='sans-serif')
+
+plt.show()
+
+# %%
+# print(len(df_edgelist_weighted[df_edgelist_weighted['weight']>1]))
+plt.figure(figsize=(10, 10))
+G = nx.MultiDiGraph()
+for row in (df_edgelist_weighted
+                    .sort_values(by='weight', ascending=False)
+                    .iloc[:500]
+        .iterrows()):
+    G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
+
+pos = nx.spring_layout(G)  # positions for all nodes
+
+# nodes
+nx.draw_networkx_nodes(G, pos, node_size=70)
+# edges
+nx.draw_networkx_edges(G, pos, alpha=0.5, edge_color='b')
+# labels
+nx.draw_networkx_labels(G, pos, font_size=10, font_family='sans-serif')
+plt.axis('off')
+# plt.savefig("weighted_graph.png") # save as png
+plt.show()  # display
+
 #%%
 #print(nx.degree_centrality(G))
 #print(list(G.neighbors('LONG BEACH')))
@@ -217,3 +241,5 @@ for port in G.nodes:
      
 print(markov)
 df_markov = pd.DataFrame(markov)
+#%%
+G.degree
