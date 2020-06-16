@@ -114,7 +114,7 @@ plot_mmsi(mmsi, df_edgelist)
 
 sample_mmsi = df_edgelist['mmsi'].sample().values[0]
 print(sample_mmsi)
-plot_mmsi(sample_mmsi)
+plot_mmsi(sample_mmsi, df_edgelist)
 
 
 # %% individual source node and all related targets plot
@@ -156,50 +156,44 @@ def plot_from_source(source, df):
     # plt.savefig("weighted_graph.png") # save as png
     plt.show()  # display
 
-plot_from_source('Tacoma', df_edgelist_weighted)
-
-# %%
+# %% plot a randomly selected source port
 sample_source = df_edgelist['Source'].sample().values[0]
 print(sample_source)
 plot_from_source(sample_source, df_edgelist_weighted)
+
+# %% Build report
+G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
+                            target='Target', edge_attr=True,
+                            create_using=nx.DiGraph)
+
+df_report = pd.DataFrame([nx.degree_centrality(G),
+                          nx.in_degree_centrality(G),
+                          nx.out_degree_centrality(G),
+                          nx.closeness_centrality(G),
+                          nx.betweenness_centrality(G),
+                          nx.katz_centrality(G)]
+                         ).T
+df_report.columns = ['Degree', 'In-Degree', 'Out-Degree', 'Closeness Centrality', 'Betweenness',
+                     'Katz Centrality']
 
 # %% Plot the whole network
 plt.figure(figsize=(10, 10))
 G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
                             target='Target', edge_attr=True,
-                            create_using=nx.MultiDiGraph)
-print(G.number_of_edges())
-print(type(G))
+                            create_using=nx.DiGraph)
+
+edges = G.edges()
+weights = [np.log((G[u][v]['weight'])+.1) for u,v in edges]
 pos = nx.spring_layout(G)  # positions for all nodes
 # nodes
-nx.draw_networkx_nodes(G, pos, node_size=70)
+nx.draw_networkx_nodes(G, pos)
 # edges
-nx.draw_networkx_edges(G, pos, alpha=0.5, edge_color='b')
+nx.draw_networkx_edges(G, pos, width=weights)
 # labels
-nx.draw_networkx_labels(G, pos, font_size=10, font_family='sans-serif')
-
-plt.show()
-
-# %% Plot the 500 heaviest weighted nodes
-# print(len(df_edgelist_weighted[df_edgelist_weighted['weight']>1]))
-plt.figure(figsize=(10, 10))
-G = nx.MultiDiGraph()
-for row in (df_edgelist_weighted
-                    .sort_values(by='weight', ascending=False)
-                    .iloc[:500]
-        .iterrows()):
-    G.add_edge(row[1]['Source'], row[1]['Target'], weight=row[1]['weight'])
-
-pos = nx.spring_layout(G)  # positions for all nodes
-# nodes
-nx.draw_networkx_nodes(G, pos, node_size=70)
-# edges
-nx.draw_networkx_edges(G, pos, alpha=0.5, edge_color='b')
-# labels
-nx.draw_networkx_labels(G, pos, font_size=10, font_family='sans-serif')
+nx.draw_networkx_labels(G, pos)
 plt.axis('off')
-# plt.savefig("weighted_graph.png") # save as png
-plt.show()  # display
+plt.title('Full Network Plot')
+plt.show()
 
 # %% Build Markov chain
 markov = {}
@@ -207,28 +201,55 @@ for port in G.nodes:
     total = 0
     port_markov = {}
     for n in G[port]:
-        total = total + (G[port][n][0]['weight'])
-        print(n, G[port][n][0]['weight'])
+        total = total + (G[port][n]['weight'])
     for n in G[port]:
-        port_markov[n] = round((G[port][n][0]['weight'] / total), 3)
+        port_markov[n] = (G[port][n]['weight'] / total)
     markov[port] = port_markov
 
 print(markov)
 df_markov = pd.DataFrame(markov)
-# %% Build report
 
-G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
-                            target='Target', edge_attr=True,
-                            create_using=nx.MultiDiGraph)
-print(len(G.degree))
+#%%
 
-#nx.k_nearest_neighbors(G)
+def run_markov(start_port):
+    start_port = start_port.upper()
+    next_port = np.random.choice(list(markov[start_port].keys()),
+                                 p=list(markov[start_port].values()))
+    return next_port
 
-df_report = pd.DataFrame([nx.degree_centrality(G),
-                          nx.in_degree_centrality(G),
-                          nx.out_degree_centrality(G)]).T
-df_report.columns = ['Degree', 'In-Degree', 'Out-Degree']
+markov['NEW ORLEANS']
 
+#%%
+first_port = 'NEWARK'
+target_port = 'PORT EVERGLADES'
+target_hop_counter = []
 
+while len(target_hop_counter) < 10000:
+    port_chain = []
+    for i in range(10000):
+        start_port = first_port
+        try:
+            next_port = np.random.choice(list(markov[start_port].keys()),
+                                         p=list(markov[start_port].values()))
+            port_chain.append(next_port)
+            if next_port == target_port:
+                target_hop_counter.append(len(port_chain))
+                break
+        except:
+            next_port = 'chain_broken'
+            port_chain.append(next_port)
+            break
+        start_port = next_port
+
+        print(len(target_hop_counter))
+
+print(target_hop_counter)
+
+#%% plot the counts it took to get to the target port
+
+fig, ax = plt.subplots(figsize=(8,6))
+ax.hist(target_hop_counter, bins=100)
+plt.title(f"Distribution of {len(target_hop_counter)} runs from {first_port.title()} to {target_port.title()}")
+plt.show()
 
 
