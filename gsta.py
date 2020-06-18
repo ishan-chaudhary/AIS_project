@@ -9,7 +9,6 @@ Created on Sat Mar 14 09:44:23 2020
 import datetime
 import os
 
-
 import psycopg2
 from sqlalchemy import create_engine
 

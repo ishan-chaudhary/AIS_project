@@ -5,7 +5,7 @@ from scipy import stats
 # plotting
 import matplotlib.pyplot as plt
 
-#%% function definitions
+# function definitions
 def build_markov(G):
     # Build Markov chain
     markov = {}
@@ -35,12 +35,12 @@ def get_next_markov(start, chain):
         next = np.random.choice(list(chain[start].keys()),
                                 p=list(chain[start].values()))
         return next
-
     except KeyError:
         # port is a dead end and is not in the chain.  return None
         return None
 
-def build_chain(chain, first_port, target_port, run_target=10000, max_run_multiplier=5, max_iterations=1000):
+
+def build_chains(chain, first_port, target_port, run_target=10000, max_run_multiplier=5, max_iterations=1000):
     first_port = first_port.upper()
     target_port = target_port.upper()
     # target_hop_counter will store how many hops it took to reach the target port in each run
@@ -65,25 +65,18 @@ def build_chain(chain, first_port, target_port, run_target=10000, max_run_multip
         next_port = get_next_markov(start_port, chain)
 
         while next_port != target_port:
-            # counter will keep track of iterations within port chain
-            iteration_counter = 0
             if next_port != None:
                 # append that port to the chain
                 port_chain.append(next_port)
                 # set the next_port as the start_port to continue the chain
                 start_port = next_port
-                # check if the iteration counter for the port chain is exceeded
-                iteration_counter = iteration_counter + 1
             else:
                 # next_port == None means there are no ports to travel to, making it a dead end.
                 # dead ends will break here, but the run will be counted in the outer loop.
                 break
-            if iteration_counter < max_iterations:
-                pass
-            else:
+            if len(port_chain) > max_iterations:
                 # if max_iterations are exceeded, the chain has expanded beyond a given number of hops.
                 # it's unlikely the target port will be reached.
-                print('Max iterations exceeded.  Breaking.')
                 break
             # use the markov state information to randomly select a port based on the past observances
             next_port = get_next_markov(start_port, markov)
@@ -98,11 +91,24 @@ def build_chain(chain, first_port, target_port, run_target=10000, max_run_multip
         if run_counter < max_runs:
             continue
         else:
-            print('Max runs exceeded.  Breaking.')
             break
     print('Length of target_hop_counter:', len(target_hop_counter))
     print('Percent of successful chains:', len(target_hop_counter) / run_counter)
     return target_hop_counter
+
+def analyze_chains(result, first_port, target_port, bin_size=50):
+    if len(result) > 0:
+        # plot the counts it took to get to the target port
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.hist(result, bins=bin_size)
+        plt.title(f"Distribution of {len(result)} runs from {first_port.title()} to {target_port.title()}")
+        plt.show()
+
+        print('The mean is', np.mean(result))
+        print('The median is', np.median(result))
+        print('The mode is', stats.mode(result)[0][0])
+    else:
+        print(f'No successful chains were built between {first_port.title()} and {target_port.title()}.')
 
 
 # %% Build the network and markov chain from file
@@ -112,10 +118,10 @@ G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
                             create_using=nx.DiGraph)
 markov = build_markov(G)
 
-#%% plot network
+# %% plot network
 plt.figure(figsize=(10, 10))
 edges = G.edges()
-weights = [np.log((G[u][v]['weight'])+.1) for u, v in edges]
+weights = [np.log((G[u][v]['weight']) + .1) for u, v in edges]
 pos = nx.spring_layout(G)  # positions for all nodes
 # nodes
 nx.draw_networkx_nodes(G, pos)
@@ -127,27 +133,15 @@ plt.axis('off')
 plt.title('Full Network Plot')
 plt.show()
 
-#%% calculate and analyze the number of hops between two ports
-
+# %% calculate and analyze the number of hops between two ports
 # assign the port you start chain at and target port
-#first_port = df_edgelist_weighted['Source'].sample().values[0]
-#target_port = df_edgelist_weighted['Source'].sample().values[0]
+first_port = df_edgelist_weighted['Source'].sample().values[0]
+target_port = df_edgelist_weighted['Source'].sample().values[0]
 
-first_port = 'BOSTON'
-target_port = 'MIAMI'
+#first_port = 'BOSTON'
+#target_port = 'MIAMI'
 
-target_hop_counter = build_chain(markov, first_port, target_port, run_target=10000,
-                                 max_run_multiplier=5, max_iterations=1000)
+result = build_chains(markov, first_port, target_port, run_target=1000,
+                                 max_run_multiplier=5, max_iterations=100)
 
-# plot the counts it took to get to the target port
-fig, ax = plt.subplots(figsize=(8, 6))
-ax.hist(target_hop_counter, bins=100)
-plt.title(f"Distribution of {len(target_hop_counter)} runs from {first_port.title()} to {target_port.title()}")
-plt.show()
-
-print('The mean is', np.mean(target_hop_counter))
-print('The median is', np.median(target_hop_counter))
-print('The mode is', stats.mode(target_hop_counter)[0][0])
-
-
-
+analyze_chains(result, first_port, target_port, bin_size=50)
