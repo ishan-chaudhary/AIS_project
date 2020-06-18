@@ -73,6 +73,8 @@ df_edgelist_weighted = (df_edgelist.groupby(['Source_id', 'Source',
 
 print(len(df_edgelist_weighted[df_edgelist_weighted['weight'] < 2]))
 
+df_edgelist_weighted.to_csv('edgelist_weighted.csv')
+
 # %% mmsi plot
 
 def plot_mmsi(mmsi, df_edgelist):
@@ -161,6 +163,8 @@ sample_source = df_edgelist['Source'].sample().values[0]
 print(sample_source)
 plot_from_source(sample_source, df_edgelist_weighted)
 
+#%%
+plot_from_source("PROVIDENCE", df_edgelist_weighted)
 # %% Build report
 G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
                             target='Target', edge_attr=True,
