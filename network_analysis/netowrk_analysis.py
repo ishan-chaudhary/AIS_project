@@ -8,7 +8,6 @@ Created on Tue Apr 28 12:15:33 2020
 
 import numpy as np
 import pandas as pd
-import datetime
 import networkx as nx
 
 # plotting
@@ -59,8 +58,7 @@ def get_edgelist(edge_table, engine, loiter_time=2):
 
 df_edgelist = get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=2)
 
-
-# %% This produces as df that is the summarized edge list with weights
+# %% This produces a df that is the summarized edge list with weights
 # for the numbers of a time a ship goes from the source node to the target node.
 # groupby the source/target id/name, count all the rows, drop the time fields,
 # rename the remaining column from mmsi to weight, and reset the index
@@ -158,6 +156,7 @@ def plot_from_source(source, df):
     # plt.savefig("weighted_graph.png") # save as png
     plt.show()  # display
 
+
 # %% plot a randomly selected source port
 sample_source = df_edgelist['Source'].sample().values[0]
 print(sample_source)
@@ -187,7 +186,7 @@ G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
                             create_using=nx.DiGraph)
 
 edges = G.edges()
-weights = [np.log((G[u][v]['weight'])+.1) for u,v in edges]
+weights = [np.log((G[u][v]['weight'])+.1) for u, v in edges]
 pos = nx.spring_layout(G)  # positions for all nodes
 # nodes
 nx.draw_networkx_nodes(G, pos)
@@ -198,62 +197,3 @@ nx.draw_networkx_labels(G, pos)
 plt.axis('off')
 plt.title('Full Network Plot')
 plt.show()
-
-# %% Build Markov chain
-markov = {}
-for port in G.nodes:
-    total = 0
-    port_markov = {}
-    for n in G[port]:
-        total = total + (G[port][n]['weight'])
-    for n in G[port]:
-        port_markov[n] = (G[port][n]['weight'] / total)
-    markov[port] = port_markov
-
-print(markov)
-df_markov = pd.DataFrame(markov)
-
-#%%
-
-def run_markov(start_port):
-    start_port = start_port.upper()
-    next_port = np.random.choice(list(markov[start_port].keys()),
-                                 p=list(markov[start_port].values()))
-    return next_port
-
-markov['NEW ORLEANS']
-
-#%%
-first_port = 'NEWARK'
-target_port = 'PORT EVERGLADES'
-target_hop_counter = []
-
-while len(target_hop_counter) < 10000:
-    port_chain = []
-    for i in range(10000):
-        start_port = first_port
-        try:
-            next_port = np.random.choice(list(markov[start_port].keys()),
-                                         p=list(markov[start_port].values()))
-            port_chain.append(next_port)
-            if next_port == target_port:
-                target_hop_counter.append(len(port_chain))
-                break
-        except:
-            next_port = 'chain_broken'
-            port_chain.append(next_port)
-            break
-        start_port = next_port
-
-        print(len(target_hop_counter))
-
-print(target_hop_counter)
-
-#%% plot the counts it took to get to the target port
-
-fig, ax = plt.subplots(figsize=(8,6))
-ax.hist(target_hop_counter, bins=100)
-plt.title(f"Distribution of {len(target_hop_counter)} runs from {first_port.title()} to {target_port.title()}")
-plt.show()
-
-
