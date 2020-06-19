@@ -14,6 +14,9 @@ from sqlalchemy import create_engine
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+
+import networkx as nx
 
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import BallTree
@@ -33,7 +36,7 @@ def connect_psycopg2(params):
         c.execute('SELECT version()')
         db_version = c.fetchone()
         print(db_version)
-	    # close the communication with the PostgreSQL
+        # close the communication with the PostgreSQL
         c.close()
         print('Connection created for', params['database'])
         return conn
@@ -481,3 +484,107 @@ eps_samples_params, id_value, clust_id_value, noise_filter):
     print('All processing for complete.  Data written to schema {}'.format(schema_name))
     print ('Time elapsed: {}'.format(lapse))
     return final_df
+
+# Network Analysis
+def get_edgelist(edge_table, engine, loiter_time=2):
+    # select all edges from the database and join them with the port info from wpi
+    # if the node is greater than 0 (not 0 which is open ocean or null)
+    # and has a time diff less than 2 hours.  That should also eliminate ports a
+    # ship transits through but does not actually stop at.
+    # df_stops is a table of all ports where a ship was within 5km for more than 2 hours.
+    # these are the "stops" we will use to build our edgelist.
+    df_stops = pd.read_sql_query(f"""select edge.node, edge.arrival_time, 
+                                 edge.depart_time, edge.time_diff,
+                                 edge.destination, edge.position_count, edge.mmsi, 
+                                 wpi.port_name
+                                 from {edge_table} as edge, wpi as wpi
+                                 where edge.node=wpi.index_no and
+                                 edge.node > 0 and
+                                 time_diff > '{str(loiter_time)} hours';""", engine)
+    df_stops.sort_values(['mmsi', 'arrival_time'], inplace=True)
+
+    # to build the edge list, we will take the pieces from stops for the current node and the next node
+    df_list = pd.concat([df_stops.node, df_stops.port_name,
+                         df_stops.node.shift(-1), df_stops.port_name.shift(-1),
+                         df_stops.mmsi, df_stops.mmsi.shift(-1),
+                         df_stops.depart_time, df_stops.arrival_time.shift(-1)], axis=1)
+    # rename the columns
+    df_list.columns = ['Source_id', 'Source', 'Target_id', 'Target',
+                       'mmsi', 'target_mmsi', 'source_depart', 'target_arrival']
+    # drop any row where the mmsi is not the same.
+    # this will leave only the rows with at least 2 nodes with valid stops, making one valid edge.
+    # The resulting df is the full edge list
+    df_list = (df_list[df_list['mmsi'] == df_list['target_mmsi']]
+               .drop('target_mmsi', axis=1))
+    # this filters ou self-loops
+    df_edgelist_full = df_list[df_list['Source_id'] != df_list['Target_id']]
+    return df_edgelist_full
+
+
+def plot_mmsi(mmsi, df_edgelist):
+    # this function will plot the path of a given mmsi across an edgelist df.
+    mmsi_edgelist = df_edgelist[df_edgelist['mmsi'] == mmsi].reset_index(drop=True)
+    mmsi_edgelist = mmsi_edgelist[['Source', 'source_depart', 'Target', 'target_arrival']]
+    # build the graph
+    G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', target='Target',
+                                edge_attr=True, create_using=nx.MultiDiGraph)
+    # get positions for all nodes
+    pos = nx.spring_layout(G)
+    # draw the network
+    plt.figure(figsize=(6, 6))
+    # draw nodes
+    nx.draw_networkx_nodes(G, pos)
+    # draw node labels
+    nx.draw_networkx_labels(G, pos, font_size=10)
+    # edges
+    nx.draw_networkx_edges(G, pos, alpha=0.5)
+    # add a buffer to the x margin to keep labels from being printed out of margin
+    x_values, y_values = zip(*pos.values())
+    x_max = max(x_values)
+    x_min = min(x_values)
+    x_margin = (x_max - x_min) * 0.25
+    plt.xlim(x_min - x_margin, x_max + x_margin)
+    # plot the title and turn off the axis
+    plt.title(f'Network Plot for MMSI {str(mmsi).title()}')
+    plt.axis('off')
+    plt.show()
+
+    print(mmsi_edgelist)
+
+def plot_from_source(source, df):
+    # this function will plot all the nodes visited from a given node
+    # create the figure plot
+    plt.figure(figsize=(8, 6))
+    # get a df with just the source port as 'Source'
+    df_g = df[df['Source'] == source.upper()]  # use upper to make sure fits df
+    # build the network
+    G = nx.from_pandas_edgelist(df_g, source='Source',
+                                target='Target', edge_attr='weight',
+                                create_using=nx.MultiDiGraph)
+    # get positions for all nodes
+    pos = nx.spring_layout(G)
+    # adjust the node lable position up by .1 so self loop labels are separate
+    node_label_pos = {}
+    for k, v in pos.items():
+        node_label_pos[k] = np.array([v[0], v[1] + .1])
+    # get edge weights as dictionary
+    weights = [i['weight'] for i in dict(G.edges).values()]
+    #  draw nodes
+    nx.draw_networkx_nodes(G, pos)
+    # draw node labels
+    nx.draw_networkx_labels(G, node_label_pos, font_size=10, font_family='sans-serif')
+    # edges
+    nx.draw_networkx_edges(G, pos, alpha=0.5, width=weights)
+    # plot the title and turn off the axis
+    plt.title('Weighted Network Plot for {} Port as Source'.format(source.title()),
+              fontsize=16)
+    plt.axis('off')
+    # make a test boc for the weights.  Can be plotted on edge, but crowded
+    box_str = 'Weights out from {}: \n'.format(source.title())
+    for neighbor, values in G[source.upper()].items():
+        box_str = (box_str + neighbor.title() + ' - ' +
+                   str(values[0]['weight']) + '\n')
+    plt.text(-1, -1, box_str, fontsize=12,
+             verticalalignment='top', horizontalalignment='left')
+    # plt.savefig("weighted_graph.png") # save as png
+    plt.show()  # display
