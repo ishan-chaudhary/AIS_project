@@ -2,8 +2,6 @@
 .Rhistory
 *.csv
 .DS_Store
-.DS_Store
-.DS_Store
 aws_connect.py
 aws_credentials.py
 __pycache__/aws_credentials.cpython-37.pyc
@@ -12,10 +10,8 @@ network_analysis/__pycache__/aws_credentials.cpython-37.pyc
 DBSCAN/report/ML1 Report.docx
 *.pptx
 *.docx
-.DS_Store
 *.pem
 DBSCAN/report/ML1 Presentation.pdf
-.DS_Store
 DBSCAN/rollups/2020-04-25.zip
 ingest_pipeline/__pycache__/aws_credentials.cpython-37.pyc
 gsta_config.py alias
