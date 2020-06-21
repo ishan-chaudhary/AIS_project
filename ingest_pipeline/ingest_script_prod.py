@@ -2,13 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Dec 15 22:44:11 2019
-
 @author: patrickmaus
 """
-
-# db connections
-import psycopg2
-from sqlalchemy import create_engine
 
 # time tracking
 import datetime
@@ -16,9 +11,9 @@ import datetime
 # file management
 import glob
 
-# for scraping, unzipping, and more file management
-import zipfile
+# scrape
 import requests
+import zipfile
 import os
 
 # Geo-Spatial Temporal Analysis package
@@ -29,21 +24,20 @@ import gsta_config
 #%%
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
 
-
 # %% drop other tables
 # Keep commented out unless we are re-ingesting everything.
-# gsta.drop_table('ship_info')
-# gsta.drop_table('ship_position')
-# gsta.drop_table('imported_ais')
-# gsta.drop_table('ship_trips')
+gsta.drop_table('ship_info', conn)
+gsta.drop_table('cargo_ship_position', conn)
+gsta.drop_table('imported_ais', conn)
+gsta.drop_table('ship_trips', conn)
 # %% start processing
 first_tick = datetime.datetime.now()
-
-log_name = '/Users/patrickmaus/Documents/projects/AIS_project/proc_logs/proc_log_{}.txt'.format(first_tick.time())
+first_tick_pretty = first_tick.strftime("%Y_%m_%d_%H%M")
+log_name = '/Users/patrickmaus/Documents/projects/AIS_project/proc_logs/proc_log_{}.txt'.format(first_tick_pretty)
 log = open(log_name, 'a+')
-log.write('Starting processing at: {} \n'.format(first_tick.time()))
+log.write('Starting processing at: {} \n'.format(first_tick_pretty))
 log.close()
-print('Starting processing at: ', first_tick)
+print('Starting processing at: ', first_tick_pretty)
 
 
 # %% create a function to print and log milestones
@@ -82,7 +76,7 @@ c.execute("""CREATE TABLE imported_ais (
 	draft			varchar,
 	cargo			varchar);""")
 conn.commit()
-# %% Create "ship_info" table in the "ais_data" database.
+# %% Create "ship_info" table in the database.
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS ship_info
 (
@@ -100,26 +94,19 @@ c.close()
 # %% Create "ship_position" table in the  database.
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS cargo_ship_position
-(
+(   id serial,
     mmsi text,
     time timestamp,
+    geog geography,
     lat numeric,
     lon numeric
 );""")
-conn.commit()
-
-c.execute("""CREATE INDEX ship_position_mmsi_idx on ship_position (mmsi);""")
-conn.commit()
-c.execute("""CREATE INDEX ship_position_geom_idx 
-          ON ship_position USING GIST (geom);""")
 conn.commit()
 c.close()
 
 # %% create WPI table funtion
 
 wpi_csv_path = '/Users/patrickmaus/Documents/projects/AIS_project/WPI_data/wpi_clean.csv'
-
-
 def make_wpi(conn, wpi_csv_path=wpi_csv_path):
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS wpi (
@@ -141,9 +128,26 @@ def make_wpi(conn, wpi_csv_path=wpi_csv_path):
     c.close()
     print('WPI created')
 
-loc_cargo_conn = connect_psycopg2(loc_cargo_params)
-make_wpi(conn=loc_cargo_conn)
 
+#%%
+def download_url(link, download_path, unzip_path, file_name, chunk_size=128):
+    print('Testing link...')
+    r = requests.get(link, stream=True)
+    if r.status_code == 200:
+        print('Link good for {}!'.format(file_name))
+    else:
+        print('Link did not return 200 status code')
+    with open(download_path, 'wb') as fd:
+        for chunk in r.iter_content(chunk_size=chunk_size):
+            fd.write(chunk)
+    print('File downloaded.')
+    with zipfile.ZipFile(download_path, 'r') as zip_ref:
+            zip_ref.extractall(path=unzip_path)
+    print('File unzipped!')
+    # delete the zipped file
+    os.remove(download_path)
+    print('Zip file deleted.')
+    print()
 
 # %% read in and parse the original file into new tables
 def parse_ais_SQL(file_name):
@@ -151,16 +155,22 @@ def parse_ais_SQL(file_name):
     c.execute("""COPY imported_ais FROM '{}'
                 WITH (format csv, header);""".format(file_name))
     conn.commit()
-    c.execute("""INSERT INTO ship_position (mmsi, time, geog, lat, lon)
+    # this will only insert positions from cargo ship types
+    c.execute("""INSERT INTO cargo_ship_position (mmsi, time, geog, lat, lon)
                 SELECT mmsi, 
                 time, 
                 ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
                 lat, 
                 lon 
-                FROM imported_ais;""")
+                FROM imported_ais
+                where ship_type IN (
+                '70','71','72','73','74','75','76','77','78','79',
+                '1003','1004','1016');""")
     conn.commit()
     c.execute("""INSERT INTO ship_info (mmsi, ship_name, ship_type)
-                SELECT DISTINCT mmsi, ship_name, ship_type from imported_ais;""")
+                SELECT DISTINCT mmsi, ship_name, ship_type from imported_ais
+                where ship_type IN ('70','71','72','73','74','75','76','77',
+                '78','79', '1003','1004','1016');""")
     conn.commit()
     c.execute("""DELETE FROM imported_ais""")
     conn.commit()
@@ -169,33 +179,14 @@ def parse_ais_SQL(file_name):
 
 # %% Populate ship_trips table from ship_postion table
 
-## Need to add ship type here.  Right now its added manually
-# alter table ship_trips 
-# add column ship_type text
-
-# --couldnt get this to work
-# insert into ship_trips (ship_type)
-# values (select ship_info.ship_type
-# from ship_info
-# join ship_trips
-# on ship_trips.mmsi = ship_info.mmsi)
-
-# --make new summary table
-# create table ship_summary as
-# select ship_info.mmsi, ship_info.ship_type,
-# ship_trips.position_count, ship_trips.line_length_km, ship_trips.time_diff
-# from ship_info, ship_trips
-# where ship_trips.mmsi = ship_info.mmsi
-
 def make_ship_trips():
     c = conn.cursor()
     c.execute("""DROP TABLE IF EXISTS ship_trips;""")
     conn.commit()
     c.execute("""CREATE TABLE ship_trips AS
     SELECT 
-        id,   
         mmsi,
-        	position_count,
+        position_count,
 		ST_Length(geography(line))/1000 AS line_length_km,
 		first_date,
 		last_date,
@@ -207,41 +198,69 @@ def make_ship_trips():
                 ST_MakeLine((pos.geog::geometry) ORDER BY pos.time) AS line,
                 MIN (pos.time) as first_date,
                 MAX (pos.time) as last_date
-                FROM ship_position as pos
+                FROM cargo_ship_position as pos
                 GROUP BY pos.mmsi) AS foo;""")
     conn.commit()
     c.execute("""CREATE INDEX ship_trips_mmsi_idx on ship_trips (mmsi);""")
     conn.commit()
     c.close()
 
-
 # %% run all the functions using the function tracker
+# set variables for functions
+folder = '/Users/patrickmaus/Documents/projects/AIS_data'
 
-source_dir = '/Users/patrickmaus/Documents/projects/AIS_data/2017/*.csv'
+year = 2017
+for zone in [9, 10, 11, 14, 15, 16, 17, 18, 19, 20]:
+    for month in range(1, 13):
+        file_name = f'{str(year)}_{str(month).zfill(2)}_{str(zone).zfill(2)}'
+        download_path = f'{folder}/{file_name}.zip'
+        unzip_path = f'{folder}/{str(year)}'
+        url_path = f'https://coast.noaa.gov/htdata/CMSP/AISDataHandler/{str(year)}/'
+        url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
+        link = url_path + url_file + '.zip'
 
-# file_name = '/Users/patrickmaus/Documents/projects/AIS_data/2017/AIS_2017_01_Zone09.csv'
+        tick = datetime.datetime.now()
+        print('Started file {} at {} \n'.format(file_name[-22:], tick.time()))
 
-for file_name in glob.glob(source_dir):
-    tick = datetime.datetime.now()
-    print('Started file {} at {} \n'.format(file_name[-22:], tick.time()))
+        # use the download_url function to download the zip file, unzip it, and
+        # delete the zip file
+        download_url(link, download_path, unzip_path, file_name)
 
-    function_tracker(parse_ais_SQL(file_name), 'parse original AIS data')
+        print('Starting to parse raw data...')
+        file_path = folder + '/' + str(year) + '/AIS_ASCII_by_UTM_Month/2017_v2/' + url_file + '.csv'
+        function_tracker(parse_ais_SQL(file_path), 'parse original AIS data')
+        print(f'Parsing complete for {file_name}.')
 
-    tock = datetime.datetime.now()
-    lapse = tock - tick
-    print('Time elapsed: {} \n'.format(lapse))
+        # delete the csv file
+        os.remove(file_path)
+        print('CSV file deleted.')
 
-    log = open(log_name, 'a+')
-    log.write('Starting file {} at {} \n'.format(file_name[-22:], tick.time()))
-    log.write('Time elapsed: {} \n'.format(lapse))
-    log.close()
+        tock = datetime.datetime.now()
+        lapse = tock - tick
+        print('Time elapsed: {} \n'.format(lapse))
 
-function_tracker(dedupe_table('ship_info'), 'dedupe ship_info')
-function_tracker(make_ship_trips(), 'make_ship_trips')
-function_tracker(make_wpi(wpi_csv_path), 'make_wpi')
+        log = open(log_name, 'a+')
+        log.write('Starting file {} at {} \n'.format(file_name[-22:], tick.time()))
+        log.write('Time elapsed: {} \n'.format(lapse))
+        log.close()
 
-# %%
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 
+#%% additional functions and index building
+
+function_tracker(gsta.dedupe_table('ship_info', conn), 'dedupe ship_info')
+function_tracker(make_ship_trips(), 'make_ship_trips')
+#%%
+
+loc_cargo_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
+make_wpi(conn=loc_cargo_conn)
+loc_cargo_conn.close()
+
+c.execute("""CREATE INDEX ship_position_mmsi_idx 
+            on cargo_ship_position (mmsi);""")
+conn.commit()
+c.execute("""CREATE INDEX ship_position_geom_idx 
+            ON cargo_ship_position USING GIST (geom);""")
+conn.commit()
