@@ -8,89 +8,71 @@ Created on Fri May 15 07:49:08 2020
 
 import gsta
 import gsta_config
+
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
-from sklearn.cluster import DBSCAN
 from sklearn.neighbors import BallTree
-from sklearn.metrics.pairwise import haversine_distances
 
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
-
-
-clust_id_value = 'super_clust_id'
-id_value='id'
-
-df_results = pd.read_sql_table(table_name='sklearn_rollup_0_5_2', con=loc_engine, 
-                               schema='sklearn_rollup_0_5_50_2020_05_14',
-                               columns=[id_value, 'lat','lon', clust_id_value])
-
-# since we created clusters by mmsi, we are going to need to redefine
-# clust_id to include the mmsi and clust_id
-df_results['clust_id'] = (df_results[id_value] + '_' +
-                          df_results[clust_id_value].astype(int).astype(str))
-
-
-"""This function finds the center of a cluster from dbscan results,
-determines the nearest port, and finds the average distance for each
-cluster point from its cluster center.  Returns a df."""
-
+conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
+loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
 ports_wpi = gsta.get_ports_wpi(loc_engine)
 
-# make a new df from the df_results grouped by cluster id
-# with the mean for lat and long
-df_centers = (df_results[[clust_id_value, 'lat','lon']]
-           .groupby(clust_id_value)
-           .mean()
-           .rename({'lat':'average_lat', 'lon':'average_lon'}, axis=1)
-           .reset_index())
-
-# Now we are going to use sklearn's KDTree to find the nearest neighbor of
-# each center for the nearest port.
-points_of_int = np.radians(df_centers.loc[:,['average_lat','average_lon']].values)
-candidates = np.radians(ports_wpi.loc[:,['lat','lon']].values)
-tree = BallTree(candidates, leaf_size=30, metric='haversine')
-
-nearest_list = []
-for i in range(len((points_of_int))):
-    dist, ind = tree.query( points_of_int[i,:].reshape(1, -1), k=1)
-    nearest_dict ={clust_id_value:df_centers.iloc[i].loc[clust_id_value],
-                   'nearest_port_id':ports_wpi.iloc[ind[0][0]].loc['port_id'],
-                   'nearest_port_dist':dist[0][0]*6371.0088}
-    nearest_list.append(nearest_dict)
-df_nearest = pd.DataFrame(nearest_list)
+# %% Create "nearest_port" table in the database.
+c = conn.cursor()
+c.execute("""CREATE TABLE IF NOT EXISTS nearest_port
+(   id int,
+    mmsi text,
+    time timestamp,
+    nearest_port_id int,
+    nearest_port_dist_km float
+);""")
+conn.commit()
+c.close()
 
 #%%
+start = datetime.now()
 
-df_centers = pd.merge(df_centers, df_nearest, how='left',on=clust_id_value)
-#%%
-# find the average distance from the centerpoint
-# We'll calculate this by finding all of the distances between each point in
-# df_results and the center of the cluster.  We'll then take the min and the mean.
-haver_list = []
-for i in df_centers[clust_id_value]:
-    X = (np.radians(df_results[df_results[clust_id_value]==i]
-                    .loc[:,['lat','lon']].values))
-    Y = (np.radians(df_centers[df_centers[clust_id_value]==i]
-                    .loc[:,['average_lat','average_lon']].values))
-    haver_result = (haversine_distances(X,Y)) * 6371.0088 #km to radians
-    haver_dict = {clust_id_value: i, 'min_dist_from_center': haver_result.min(),
-                  'max_dist_from_center': haver_result.max(),
-                  'average_dist_from_center':np.mean(haver_result)}
-    haver_list.append(haver_dict)
+# build the BallTree using the ports as the candidates
+candidates = np.radians(ports_wpi.loc[:, ['lat', 'lon']].values)
+tree = BallTree(candidates, leaf_size=40, metric='haversine')
 
-# merge the haver results back to df_centers
-haver_df = pd.DataFrame(haver_list)
-print(haver_df)
-print(df_centers)
-df_centers = pd.merge(df_centers, haver_df, how='left', on=clust_id_value)
+# create the pandas generator using chuncksize
+from_schema_name = 'public'
+source_table = 'cargo_ship_position'
+new_table_name = 'nearest_port'
+read_sql = """SELECT id, mmsi, time, lat, lon
+            FROM {0}.{1};
+            """.format(from_schema_name, source_table)
+chunksize = 100000
+count = 0
+generator = pd.read_sql(sql=read_sql, con=loc_engine, chunksize=chunksize)
 
-# create "total cluster count" column through groupby
-clust_size = (df_results[['lat',clust_id_value]]
-          .groupby(clust_id_value)
-          .count()
-          .reset_index()
-          .rename({'lat':'total_clust_count'}, axis=1))
-# merge results back to df_Centers
-df_centers = pd.merge(df_centers, clust_size, how='left', on=clust_id_value)
+for df in generator:
+    iteration_start = datetime.now()
+    # Now we are going to use sklearn's BallTree to find the nearest neighbor of
+    # each position for the nearest port.  The resulting port_id and dist will be
+    # pushed back to the db with the id, mmsi, and time to be used in the network
+    # building phase of analysis.  This takes up more memory, but means we have
+    # fewer joins.  Add an index on mmsi though before running network building.
+    points_of_int = np.radians(df.loc[:, ['lat', 'lon']].values)
+    nearest_list = []
+    for i in range(len((points_of_int))):
+        dist, ind = tree.query(points_of_int[i,:].reshape(1, -1), k=1)
+        nearest_dict ={'id':df['id'].iloc[i],
+                       'mmsi':df['mmsi'].iloc[i],
+                       'time': df['time'].iloc[i],
+                       'nearest_port_id':ports_wpi.iloc[ind[0][0]].loc['port_id'],
+                       'nearest_port_dist_km':dist[0][0]*6371.0088}
+        nearest_list.append(nearest_dict)
+    df_nearest = pd.DataFrame(nearest_list)
+
+    # write df to databse
+    df_nearest.to_sql(name=new_table_name, con=loc_engine,
+                      if_exists='append', method='multi', index=False)
+    count += len(df)
+    print('Iteration complete in:', datetime.now() - iteration_start)
+    print(f"{count:,d} total rows written.")
+
+print('Total Lapse:', datetime.now()-start)
