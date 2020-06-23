@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 
 # function definitions
 def build_markov(G):
-    # Build Markov chain
+    # Build Markov chain given a weighted network.
+    # the number of edges from each source to each target are used to determine the
+    # probability of any ship at the given source moving to a next port or staying.
+    # returns a dictionary.
     markov = {}
     for port in G.nodes:
         total = 0
@@ -47,11 +50,11 @@ def build_chains(chain, first_port, target_port, run_target=10000, max_run_multi
     target_hop_counter = list()
     # run tracker
     run_counter = 0
-    # run_target is the target for successful runs
-    # max_run_multiplier is the multiplier of run_targets that will be used to get the max runs
-    # max run is the counter for entire loop, including dead ends
+    # run_target (func argument) is the target for successful runs
+    # max_run_multiplier (func argument) is the multiplier of run_targets that will be used to get the max runs
+    # max run is the counter for entire loop, including dead ends.  uses max_run_multiplier
     max_runs = run_target * max_run_multiplier
-    # max iterations is the number of targets an individual chain will try to build
+    # max_iterations (func argument) is the number of targets an individual chain will try to build
 
     while len(target_hop_counter) < run_target:
         # at each round, the starting port needs to be re-set
@@ -60,8 +63,7 @@ def build_chains(chain, first_port, target_port, run_target=10000, max_run_multi
         port_chain = list()
         # start each chain by adding the first port.
         port_chain.append(first_port)
-        # use the markov state information to randomly select a port based on the
-        # past observances
+        # use the markov state information to randomly select a port based on the past observances
         next_port = get_next_markov(start_port, chain)
 
         while next_port != target_port:
@@ -141,7 +143,7 @@ target_port = df_edgelist_weighted['Source'].sample().values[0]
 #first_port = 'BOSTON'
 #target_port = 'MIAMI'
 
-result = build_chains(markov, first_port, target_port, run_target=1000,
-                                 max_run_multiplier=5, max_iterations=100)
+result = build_chains(markov, first_port, target_port, run_target=10000,
+                                 max_run_multiplier=5, max_iterations=500)
 
 analyze_chains(result, first_port, target_port, bin_size=50)

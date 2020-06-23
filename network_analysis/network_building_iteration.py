@@ -5,7 +5,6 @@ import datetime
 import gsta
 import gsta_config
 
-
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 
@@ -13,12 +12,8 @@ loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 port_activity_table = 'ship_ports'
 edge_table = 'cargo_edgelist'
 dist = 5
-#%% Function for executing SQL
-def execute_sql(SQL_string):
-    c = conn.cursor()
-    c.execute(SQL_string)
-    conn.commit()
-    c.close()
+
+#%% port check function
     
 def port_check(row, dist=dist):
     if row['nearest_port_dist_km'] <=dist:
@@ -137,49 +132,3 @@ last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 
-
-
-#%% old working sample
-
-
-# #%%
-#     df['port_id'] = df.apply(port_check, axis=1)
-
-#     # set the initial conidtions and make an empty list
-#     node = df['port_id'].iloc[0]
-#     arrival_time = df['time'].iloc[0] 
-#     position_count = 0 
-#     mmsi_edge_list = []
-#     # iterate through all the rows, except for the last
-#     for idx in (range(len(df)-1)):
-#         # if the port id's are different, the ship went from one area to another
-#         if  df['port_id'].iloc[idx] != df['port_id'].iloc[idx+1]:
-#             # capture the depart time and the destination to add to the node of interest
-#             # and arrival time already set
-#             depart_time = df['time'].iloc[idx] 
-#             destination = df['port_id'].iloc[idx+1]
-#             position_count += 1
-           
-#             #  add to a list
-#             mmsi_edge_list.append([node, arrival_time, depart_time, destination, 
-#                                     position_count, mmsi[0]])
-#             print([node, arrival_time, depart_time, destination, 
-#                                     position_count, mmsi[0]])
-#             node = df['port_id'].iloc[idx+1]
-#             arrival_time = df['time'].iloc[idx+1]
-#             position_count = 0
-        
-#         #this case covers when a vessel does not make any changes
-#         elif df['port_id'].iloc[idx] == df['port_id'].iloc[idx+1]:
-#             position_count += 1
-    
-#         # make a df from the mmsi_edge_list, push to sql, and extend to edge_list
-#         mmsi_df = pd.DataFrame(mmsi_edge_list, columns=['node', 'arrival_time', 'depart_time',
-#                                                         'destination', 'position_count', 'mmsi'])
-#         # determine the time diff
-#         #mmsi_df['time_diff'] = mmsi_df['depart_time'] - mmsi_df['arrival_time']
-    
-#         mmsi_df.to_sql(name=edge_table, con=loc_engine, if_exists='append',
-#                    method='multi', index=False )
-#         #edge_list.extend(mmsi_edge_list)
-    
