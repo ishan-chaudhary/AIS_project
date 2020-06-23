@@ -4,32 +4,29 @@
 Created on Sun Dec 15 22:44:11 2019
 @author: patrickmaus
 """
-
 # time tracking
 import datetime
-
-# file management
-import glob
 
 # scrape
 import requests
 import zipfile
 import os
 
+# folder management
+import glob
+
 # Geo-Spatial Temporal Analysis package
 import gsta
 import gsta_config
 
-
 #%%
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-
 # %% drop other tables
-# Keep commented out unless we are re-ingesting everything.
-gsta.drop_table('ship_info', conn)
-gsta.drop_table('cargo_ship_position', conn)
-gsta.drop_table('imported_ais', conn)
-gsta.drop_table('ship_trips', conn)
+# # Keep commented out unless we are re-ingesting everything.
+# gsta.drop_table('ship_info', conn)
+# gsta.drop_table('cargo_ship_position', conn)
+# gsta.drop_table('imported_ais', conn)
+# gsta.drop_table('ship_trips', conn)
 # %% start processing
 first_tick = datetime.datetime.now()
 first_tick_pretty = first_tick.strftime("%Y_%m_%d_%H%M")
@@ -38,23 +35,6 @@ log = open(log_name, 'a+')
 log.write('Starting processing at: {} \n'.format(first_tick_pretty))
 log.close()
 print('Starting processing at: ', first_tick_pretty)
-
-
-# %% create a function to print and log milestones
-def function_tracker(function, function_name,
-                     tick_now=datetime.datetime.now()):
-    print('Starting function {}'.format(function_name))
-    function
-    tock_now = datetime.datetime.now()
-    lapse = tock_now - tick_now
-
-    log = open(log_name, 'a+')
-    log.write('Starting function {} \n'.format(function_name))
-    log.write('Total Time elapsed: {} \n'.format(lapse))
-    log.close()
-
-    print('Total Time elapsed: ', lapse)
-
 
 # %% create an imported_ais table to hold each file as its read in
 c = conn.cursor()
@@ -105,7 +85,6 @@ conn.commit()
 c.close()
 
 # %% create WPI table funtion
-
 wpi_csv_path = '/Users/patrickmaus/Documents/projects/AIS_project/WPI_data/wpi_clean.csv'
 def make_wpi(conn, wpi_csv_path=wpi_csv_path):
     c = conn.cursor()
@@ -127,8 +106,6 @@ def make_wpi(conn, wpi_csv_path=wpi_csv_path):
     conn.commit()
     c.close()
     print('WPI created')
-
-
 #%%
 def download_url(link, download_path, unzip_path, file_name, chunk_size=128):
     print('Testing link...')
@@ -147,10 +124,9 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=128):
     # delete the zipped file
     os.remove(download_path)
     print('Zip file deleted.')
-    print()
 
 # %% read in and parse the original file into new tables
-def parse_ais_SQL(file_name):
+def parse_ais_SQL(file_name, conn=conn):
     c = conn.cursor()
     c.execute("""COPY imported_ais FROM '{}'
                 WITH (format csv, header);""".format(file_name))
@@ -176,14 +152,12 @@ def parse_ais_SQL(file_name):
     conn.commit()
     c.close()
 
-
-# %% Populate ship_trips table from ship_postion table
-
-def make_ship_trips():
+# %% Populate ship_trips table from ship position table
+def make_ship_trips(new_table_name, conn):
     c = conn.cursor()
-    c.execute("""DROP TABLE IF EXISTS ship_trips;""")
+    c.execute(f"""DROP TABLE IF EXISTS {new_table_name};""")
     conn.commit()
-    c.execute("""CREATE TABLE ship_trips AS
+    c.execute(f"""CREATE TABLE {new_table_name} AS
     SELECT 
         mmsi,
         position_count,
@@ -201,40 +175,74 @@ def make_ship_trips():
                 FROM cargo_ship_position as pos
                 GROUP BY pos.mmsi) AS foo;""")
     conn.commit()
-    c.execute("""CREATE INDEX ship_trips_mmsi_idx on ship_trips (mmsi);""")
+    c.execute(f"""CREATE INDEX ship_trips_mmsi_idx on {new_table_name} (mmsi);""")
     conn.commit()
     c.close()
 
 # %% run all the functions using the function tracker
 # set variables for functions
 folder = '/Users/patrickmaus/Documents/projects/AIS_data'
-
 year = 2017
-for zone in [9, 10, 11, 14, 15, 16, 17, 18, 19, 20]:
-    for month in range(1, 13):
-        file_name = f'{str(year)}_{str(month).zfill(2)}_{str(zone).zfill(2)}'
-        download_path = f'{folder}/{file_name}.zip'
-        unzip_path = f'{folder}/{str(year)}'
-        url_path = f'https://coast.noaa.gov/htdata/CMSP/AISDataHandler/{str(year)}/'
-        url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
-        link = url_path + url_file + '.zip'
+completed_files = []
+error_files = []
+#%%
+# clear out any csvs first that are in the directory.
+# since the files unzip to different subfolders, we have to use the blunt glob.glob approach
+# to find the new csv.  Therefore, we are going to nuke any csvs in the directory or any subdirectories
+print('Removing any .csv files in the target folder.')
+for file in (glob.glob((folder + '/**/*.csv'), recursive=True)):
+    os.remove(file)
+    print('removed file', file[-22:])
 
-        tick = datetime.datetime.now()
-        print('Started file {} at {} \n'.format(file_name[-22:], tick.time()))
+# iterate through each month and each zone.  get the file and then parse them.
+# need to add a check that writes each file and counts to a table for tracking iterations
+for month in range(1, 13):
+    for zone in [9, 10, 11, 14, 15, 16, 17, 18, 19, 20]:
+        try:
+            file_name = f'{str(year)}_{str(month).zfill(2)}_{str(zone).zfill(2)}'
+            download_path = f'{folder}/{file_name}.zip'
+            unzip_path = f'{folder}/{str(year)}'
+            url_path = f'https://coast.noaa.gov/htdata/CMSP/AISDataHandler/{str(year)}/'
+            url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
+            link = url_path + url_file + '.zip'
 
-        # use the download_url function to download the zip file, unzip it, and
-        # delete the zip file
-        download_url(link, download_path, unzip_path, file_name)
+            tick = datetime.datetime.now()
+            print('Started file {} at {}.'.format(file_name[-22:], tick.time()))
 
-        print('Starting to parse raw data...')
-        file_path = folder + '/' + str(year) + '/AIS_ASCII_by_UTM_Month/2017_v2/' + url_file + '.csv'
-        function_tracker(parse_ais_SQL(file_path), 'parse original AIS data')
-        print(f'Parsing complete for {file_name}.')
+            if url_file in completed_files:
+                print('File has already been processed.  Skipping.')
+                continue
+            elif url_file in error_files:
+                print('File has been processed but errored out.  Skipping.')
+                continue
+            else:
+                # use the download_url function to download the zip file, unzip it, and
+                # delete the zip file
+                download_url(link, download_path, unzip_path, file_name)
 
-        # delete the csv file
-        os.remove(file_path)
-        print('CSV file deleted.')
+                print('Starting to parse raw data...')
+                #file_path = folder + '/' + str(year) + '/AIS_ASCII_by_UTM_Month/2017_v2/' + url_file + '.csv'
+                if len((glob.glob((folder + '/**/*.csv'), recursive=True))) == 1:
+                    file = glob.glob((folder + '/**/*.csv'), recursive=True)[0]
+                    parse_ais_SQL(file)
+                    print(f'Parsing complete for {file_name}.')
+                    # delete the csv file
+                    os.remove(file)
+                    print('CSV file deleted.')
+                else:
+                    print('More than one file expected.  Removing all of them.')
+                    for file in (glob.glob((folder + '/**/*.csv'), recursive=True)):
+                        os.remove(file)
+                #append the file to the completed file list.
+                completed_files.append(url_file)
+        except:
+            print('Error.  File name added to the error list.')
+            error_files.append(url_file)
+            log = open(log_name, 'a+')
+            log.write('Error for file {}'.format(file_name[-22:]))
+            log.close()
 
+        # wrap up time keeping and logging
         tock = datetime.datetime.now()
         lapse = tock - tick
         print('Time elapsed: {} \n'.format(lapse))
@@ -248,14 +256,16 @@ last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 
-#%% additional functions and index building
 
-function_tracker(gsta.dedupe_table('ship_info', conn), 'dedupe ship_info')
-function_tracker(make_ship_trips(), 'make_ship_trips')
+
+
+#%% additional functions and index building
+gsta.dedupe_table('ship_info', conn=loc_cargo_conn)
+make_ship_trips('ship_trips', conn=loc_cargo_conn)
+make_wpi(conn=loc_cargo_conn)
 #%%
 
 loc_cargo_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-make_wpi(conn=loc_cargo_conn)
 loc_cargo_conn.close()
 
 c.execute("""CREATE INDEX ship_position_mmsi_idx 
@@ -264,3 +274,6 @@ conn.commit()
 c.execute("""CREATE INDEX ship_position_geom_idx 
             ON cargo_ship_position USING GIST (geom);""")
 conn.commit()
+
+#%%
+print(glob.glob((folder + '/**/*.csv'), recursive=True))
