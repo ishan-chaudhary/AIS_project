@@ -5,16 +5,15 @@ import datetime
 import gsta
 import gsta_config
 
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
+loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
 
 #%% variable delcaration
-port_activity_table = 'ship_ports'
+port_activity_table = 'nearest_port'
 edge_table = 'cargo_edgelist'
 dist = 5
 
 #%% port check function
-    
 def port_check(row, dist=dist):
     if row['nearest_port_dist_km'] <=dist:
         val = row['nearest_port_id']
@@ -22,7 +21,7 @@ def port_check(row, dist=dist):
         val = 0
     return val
 
-#%% Create the edege table
+#%% Create the edge table
 c = conn.cursor()
 c.execute("""DROP TABLE IF EXISTS {};""".format(edge_table))
 conn.commit()
@@ -38,6 +37,20 @@ c.execute("""CREATE TABLE IF NOT EXISTS {}  (
 """.format(edge_table))
 conn.commit()
 c.close()
+
+#%% set indices for tables.
+c = conn.cursor()
+conn.commit()
+c.execute(f"""CREATE INDEX port_mmsi_idx on {port_activity_table} (mmsi);""")
+conn.commit()
+c.close()
+
+c = conn.cursor()
+conn.commit()
+c.execute(f"""CREATE INDEX edgelist_mmsi_idx on {edge_table} (mmsi);""")
+conn.commit()
+c.close()
+
 
 #%% get mmsi lists
 
@@ -131,4 +144,9 @@ for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
+
+
+#%%
+conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
+loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
 
