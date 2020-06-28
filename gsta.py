@@ -574,7 +574,7 @@ def plot_from_source(source, df):
     # draw node labels
     nx.draw_networkx_labels(G, node_label_pos, font_size=10, font_family='sans-serif')
     # edges
-    nx.draw_networkx_edges(G, pos, alpha=0.5, width=weights)
+    nx.draw_networkx_edges(G, pos, alpha=0.5, width=np.log(weights))
     # plot the title and turn off the axis
     plt.title('Weighted Network Plot for {} Port as Source'.format(source.title()),
               fontsize=16)

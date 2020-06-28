@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Apr 28 12:15:33 2020
 
-@author: patrickmaus
-"""
 
 import numpy as np
 import pandas as pd
@@ -17,8 +13,8 @@ import matplotlib.pyplot as plt
 import gsta
 import gsta_config
 #%%
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
+loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
 #%%
 df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=2)
 
@@ -35,7 +31,7 @@ df_edgelist_weighted = (df_edgelist.groupby(['Source_id', 'Source',
 
 print(len(df_edgelist_weighted[df_edgelist_weighted['weight'] < 2]))
 
-df_edgelist_weighted.to_csv('edgelist_weighted.csv')
+df_edgelist_weighted[df_edgelist_weighted['weight'] > 2].to_csv('edgelist_weighted.csv', index=False)
 
 # %% mmsi plot
 
@@ -45,10 +41,6 @@ gsta.plot_mmsi(mmsi, df_edgelist)
 sample_mmsi = df_edgelist['mmsi'].sample().values[0]
 print(sample_mmsi)
 gsta.plot_mmsi(sample_mmsi, df_edgelist)
-
-
-# %% individual source node and all related targets plot
-
 
 
 # %% plot a randomly selected source port
@@ -67,12 +59,14 @@ df_report = pd.DataFrame([nx.degree_centrality(G),
                           nx.in_degree_centrality(G),
                           nx.out_degree_centrality(G),
                           nx.closeness_centrality(G),
-                          nx.betweenness_centrality(G),
-                          nx.katz_centrality(G)]
+                          nx.betweenness_centrality(G)]
                          ).T
-df_report.columns = ['Degree', 'In-Degree', 'Out-Degree', 'Closeness Centrality', 'Betweenness',
-                     'Katz Centrality']
+df_report.columns = ['Degree', 'In-Degree', 'Out-Degree', 'Closeness Centrality', 'Betweenness']
 print(df_report)
+
+#%%
+np.log(df_edgelist_weighted['weight']).hist()
+plt.show()
 # %% Plot the whole network
 plt.figure(figsize=(10, 10))
 G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
