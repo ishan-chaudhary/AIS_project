@@ -107,6 +107,7 @@ def predict_ngram(mmsi_history, model, N, print=False):
             words = words + (mmsi_history.split()[-i],)
         # get the predicted port based on the model.  predicted is a dict
         predicted = dict(model[words])
+        # sort predicted so largest value is first
         predicted = {k: v for k, v in sorted(predicted.items(), key=lambda item: item[1], reverse=True)}
 
         if print==True:
@@ -183,10 +184,11 @@ for N in range(2,8):
 #%% monte carlo simulation
 results_dict = dict()
 run_numb = 0
-N = 4
+N = 3
 history = build_history(df_edgelist)
+top = 5
 
-while run_numb < 1000:
+while run_numb < 1:
     history_train, history_test = history_split(history, test_percent=.2)
     model = build_ngram_model(history_train, N)
 
@@ -220,8 +222,24 @@ df_results = pd.DataFrame.from_dict(results_dict, orient='index',
 print(f'Over {run_numb} runs with N=={N}: '
       f'Average accuracy={round(df_results.accuracy.mean(), 5)} and '
       f'Average precision={round(df_results.precision.mean(), 5)}')
+#%% experimentation with predicting for every ngram withing mmsi history, not just last port
+port_list = list()
+for k, v in history.items():
+    for words in ngrams(v.split(), 3):
+        if words not in port_list:
+            port_list.append(words)
+        else: continue
 
 #%%
+for p in port_list[:5]:
+    print('Previous ports are:', p[0], p[1])
+    print('Target port is:', p[2])
+    for k, v in (model[p[0], p[1]]).items():
+        print(k)
+        print(v)
+
+
+#%% early dev work
 # # build models
 # n2_model = build_ngram_model(history_train, 2)
 # n3_model = build_ngram_model(history_train, 3)

@@ -65,6 +65,9 @@ df_report.columns = ['Degree', 'In-Degree', 'Out-Degree', 'Closeness Centrality'
 print(df_report)
 
 #%%
+df_report_sorted = df_report.sort_values('Closeness Centrality', ascending=False)
+
+#%%
 np.log(df_edgelist_weighted['weight']).hist()
 plt.show()
 # %% Plot the whole network
