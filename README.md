@@ -32,7 +32,8 @@ The project has four major phases.
   - PostGreSQL with post GIS
   - PG Admin 4
   - QGIS
-  - Spyder
+  - PyCharm
+  - Gephi (network analysis)
 
   Python Packages Used (Current 24 April 2020)
 
@@ -47,12 +48,21 @@ The project has four major phases.
   Visualization and Plotting
   - matplotlib
 
+  Network analysis
+  - networkx
+
+  Route Prediction using N-grams
+  -from nltk import ngrams
+
   File management
   - glob
   - os
+  - zipfile
 
-  Time tracking
+  Other Utility Packages
   - datetime
+  - random
+  - from collections import defaultdict
 
   Model Building and calculations
   - from sklearn.neighbors import BallTree
@@ -64,7 +74,7 @@ The project has four major phases.
 
 # Data Ingest, Cleaning, and Analysis
 
-  The AIS data is large.  January 2017 data fro the US is 25 gigabytes.  The entire year could be about 300 gigabytes.  There are two options here.  The first is to put it all in the cloud with all the raw data and cleaned tables.  The second is to  store all csvs as zipped files, process and clean he data in chunks to a database, and create a summary for every vessel in the data.  Then, we can sample the raw positions and conduct cluster analysis on those samples.  Armed with our summary analysis of the entire data, we can then ensure that our samples are representative of different patterns.
+  The AIS data is large.  January 2017 data for the US is 25 gigabytes.  The entire year could be about 300 gigabytes.  There are two options here.  The first is to put it all in the cloud with all the raw data and cleaned tables.  The second is to  store all csvs as zipped files, process and clean he data in chunks to a database, and create a summary for every vessel in the data.  Then, we can sample the raw positions and conduct cluster analysis on those samples.  Armed with our summary analysis of the entire data, we can then ensure that our samples are representative of different patterns.
 
   We will first pursue the latter option, but may eventually use AWS to spin-up a PostGres instance for the entire dataset.
 
