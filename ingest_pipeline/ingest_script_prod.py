@@ -266,14 +266,16 @@ make_wpi(conn=loc_cargo_conn)
 #%%
 
 loc_cargo_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-loc_cargo_conn.close()
+make_ship_trips('ship_trips', conn=loc_cargo_conn)
 
+c = loc_cargo_conn.cursor()
 c.execute("""CREATE INDEX ship_position_mmsi_idx 
             on cargo_ship_position (mmsi);""")
-conn.commit()
+loc_cargo_conn.commit()
 c.execute("""CREATE INDEX ship_position_geom_idx 
-            ON cargo_ship_position USING GIST (geom);""")
-conn.commit()
+            ON cargo_ship_position USING GIST (geog);""")
+loc_cargo_conn.commit()
+loc_cargo_conn.close()
 
 #%%
 print(glob.glob((folder + '/**/*.csv'), recursive=True))

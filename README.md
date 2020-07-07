@@ -21,11 +21,12 @@ The project has four major phases.
 ## Data Sources
   Easy to scrape website:
   https://coast.noaa.gov/htdata/CMSP/AISDataHandler/2017/index.html
+  
   Pretty website:
   https://marinecadastre.gov/ais/
+  
   World Port Index (loaded using QGIS into Post GIS)
   https://msi.nga.mil/Publications/WPI
-
 
 ## Required Software
 

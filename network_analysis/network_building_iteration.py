@@ -23,7 +23,7 @@ def port_check(row, dist=dist):
 
 #%% Create the edge table
 c = conn.cursor()
-c.execute("""DROP TABLE IF EXISTS {};""".format(edge_table))
+#c.execute("""DROP TABLE IF EXISTS {};""".format(edge_table))
 conn.commit()
 c.execute("""CREATE TABLE IF NOT EXISTS {}  (
         node                int,
@@ -144,9 +144,4 @@ for i in range(len(mmsi_list)): #iterate through all the mmsi #'s gathered
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
-
-
-#%%
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
 
