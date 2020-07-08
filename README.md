@@ -36,7 +36,7 @@ The project has four major phases.
   - PyCharm
   - Gephi (network analysis)
 
-  Python Packages Used (Current 24 April 2020)
+  Python Packages Used (Current 7 July 2020)
 
   Database management
   - psycopg2
@@ -45,6 +45,7 @@ The project has four major phases.
   Data cleaning and Analysis
   - Pandas
   - numpy
+  - Scipy
 
   Visualization and Plotting
   - matplotlib
@@ -80,6 +81,8 @@ The project has four major phases.
   We will first pursue the latter option, but may eventually use AWS to spin-up a PostGres instance for the entire dataset.
 
   Current implementation (16 January 2020) uses a source directory as an input and iterates through all the csv files in that directory.  Future improvements can allow filtering based on month and zone.  Additionally, can eventually add a webscraper component.
+  
+  Late June 2020: Added a scraper to ingest script that iterates through desired months and zones, building the database piecemeal.  By only focusing on cargo ships, we reduce the overall data to about 10% of the total and have a more homogenous dataset to analyze.
 
 
 ## Ingest Pipeline Summary
@@ -107,14 +110,12 @@ The project has four major phases.
 ## Create Samples for Further analysis
   Python script "populate_sample" takes the csv output of the sample MMSIs from the Jupyter Notebook "ships_trips_analysis" and adds all positions from the "ship_position" table to a new "ship_position_sample" table.  It also makes a "ship_trips_sample" table from the full "ship_trips" table.
 
-## Port Activity tables creation
-  Creates a table that includes all of a ship's position when the ship's positions are within X meters of a known port.  
-
-  The WPI dataset has  duplicate port locations.  Specifically, the exact same geos are used twice by two different named and indexed ports 13 times.  I naively dropped duplicates on the lat and lon columns to resolve.  No order is guaranteed, so this is a risk for reproducibility.  TODO: EIther order the drops in some way or record the 13 ports removed for documentation.
+## Nearest Port table creation
+  Python script "knn_nearest_port.py" finds the nearest port in the WPI for each position and determines the distance.
 
 
 ## Table Summary for ingest pipeline
-  imported_ais --> ship_position --> ship_trips --> port_activity
+  imported_ais --> ship_position --> ship_trips --> knn_nearest_port
 
 ## Lessons Learned
 ### Using PostGreSQL COPY
@@ -377,24 +378,12 @@ The project has four major phases.
 
 
 # Network Analysis
-  First step is to create the input for a network multigraph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.
+  First step is to create the input for a directed network graph.  For each unique identifier, lets evaluate if each point is "in" a port, as defined as a certain distance from a known port.  Then we can reduce all of the points down to when each unique identifier arrives and departs a known port.  In this network, each node is a port, and the edges are the travels of one identifier from a port to another.
 
-  The python script "port_activity" identifies all positions within a certain distance of a port (now set for 2000m).  It then finds the closest port if more than one is returned, and joins the closes port back to the position data as a new table.  Right now this is one large query and needs to be modified to insert the new columns for port_id and port_name back into the original data rather than make a new table.
-
-  The Python script "network_building" iterates through a table with ship position and determines an origin and destination for each connection between two ports.  These can be imported into networkx as edges.  The script also captures departure time,  arrival time, and total positions between the two ports as edge attributes.  These can be used to narrow down true port-to-port trips and minimize times when a ship repeatedly jumps back and forth between ports in a short number of positions or narrow time window.  All of this data is written to a table in the database.
-
-### Status as of 18 January 2019:
-  Using a sample of 200 mmsis, we went from 135 million positions in all of January to a total of 2,155,696 positions.  This reduces to 1003 nodes.
-
-
-  - I also need to add a conditional that looks for a minimum of X time at each port to prevent a ship from traveling by numerous ports to be listed as in port.
-  - Refactor not to use pandas if proved to be non-preformant
-  - Break code block into functions
-
-### Note on Network Building
-So options.
- - Create a knn script that finds the nearest port for every position report.  Done. Problem is that the network script needs the postions further than xkm and within xkm.
- - Find nearest ports with 5, 10, xkm from every position.
+  -'network_building_iteration.py' builds a new table ("cargo_edgelist") with potential edges
+  -'network_analysis.py' includes functions to build weighted and unweighted netowrks as well as visualizations and network reports
+  -'nlp_predict.py' builds N-gram models and makes predictions based on previous ports visited.
+   
 
 # Time series analysis
   Holt-winter seasonal model, multiple linear regression, ARMA, ARIMA, SARIMAX, and maybe even LSTM?  Predict volume at a port or for ports?  Or predict activity for a class of ships?
