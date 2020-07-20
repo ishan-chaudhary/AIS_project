@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import numpy as np
 import pandas as pd
@@ -20,7 +18,7 @@ conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
 loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
 #%% get edgelist from database
 df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=2)
-#df_edgelist.to_csv('edgelist.csv')
+# df_edgelist.to_csv('edgelist.csv')
 
 # %% This produces a df that is the summarized edge list with weights
 # for the numbers of a time a ship goes from the source node to the target node.
