@@ -24,7 +24,7 @@ loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 #first_round_params = [[.5, 50], [.5, 100], [.25,25], [.25, 50], [.25,100], [1,100]]
 
 # make the new schema for todays date and the method.
-#schema_name = gsta.create_schema('sklearn_mmsi', conn, drop_schema=False, with_date=False)  
+#schema_name = gsta.create_schema('sklearn_uid', conn, drop_schema=False, with_date=False)  
 
 #%% first round params for samples
 epsilons_km = [.25, .5, 1, 2, 3, 5, 7]
@@ -44,15 +44,15 @@ first_round_schema_name = gsta.create_schema('sklearn_sample_first_rnd', conn, d
 gsta.execute_dbscan(source_table='ship_position_sample', 
                     to_schema_name=first_round_schema_name,
                     from_schema_name='public',
-                    method='sklearn_mmsi',
+                    method='sklearn_uid',
                     eps_samples_params=first_round_params,
                     conn=conn, engine=loc_engine)
 # analyze the first round results, writing to the same schema
-gsta.analyze_dbscan(method_used='sklearn_mmsi', 
+gsta.analyze_dbscan(method_used='sklearn_uid', 
                     schema_name=first_round_schema_name, 
                     ports_labeled='ports_5k_sample_positions', 
                     eps_samples_params=first_round_params,
-                    id_value='mmsi', clust_id_value='clust_id',
+                    id_value='uid', clust_id_value='clust_id',
                     noise_filter=10, conn=conn, engine=loc_engine)
 
 #%% second round params

@@ -39,7 +39,7 @@ print('Starting processing at: ', first_tick_pretty)
 # %% create an imported_ais table to hold each file as its read in
 c = conn.cursor()
 c.execute("""CREATE TABLE imported_ais (
-  	mmsi 			text,
+  	uid 			text,
     time     		timestamp,
 	lat				numeric,
 	lon				numeric,
@@ -60,14 +60,14 @@ conn.commit()
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS ship_info
 (
-    mmsi text,
+    uid text,
     ship_name text,
     ship_type text
 );""")
 conn.commit()
 
-# Create index on MMSI
-c.execute("""CREATE INDEX ship_info_mmsi_idx on ship_info (mmsi);""")
+# Create index on uid
+c.execute("""CREATE INDEX ship_info_uid_idx on ship_info (uid);""")
 conn.commit()
 c.close()
 
@@ -75,7 +75,7 @@ c.close()
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS cargo_ship_position
 (   id serial,
-    mmsi text,
+    uid text,
     time timestamp,
     geog geography,
     lat numeric,
@@ -132,8 +132,8 @@ def parse_ais_SQL(file_name, conn=conn):
                 WITH (format csv, header);""".format(file_name))
     conn.commit()
     # this will only insert positions from cargo ship types
-    c.execute("""INSERT INTO cargo_ship_position (mmsi, time, geog, lat, lon)
-                SELECT mmsi, 
+    c.execute("""INSERT INTO cargo_ship_position (uid, time, geog, lat, lon)
+                SELECT uid, 
                 time, 
                 ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
                 lat, 
@@ -143,8 +143,8 @@ def parse_ais_SQL(file_name, conn=conn):
                 '70','71','72','73','74','75','76','77','78','79',
                 '1003','1004','1016');""")
     conn.commit()
-    c.execute("""INSERT INTO ship_info (mmsi, ship_name, ship_type)
-                SELECT DISTINCT mmsi, ship_name, ship_type from imported_ais
+    c.execute("""INSERT INTO ship_info (uid, ship_name, ship_type)
+                SELECT DISTINCT uid, ship_name, ship_type from imported_ais
                 where ship_type IN ('70','71','72','73','74','75','76','77',
                 '78','79', '1003','1004','1016');""")
     conn.commit()
@@ -159,7 +159,7 @@ def make_ship_trips(new_table_name, conn):
     conn.commit()
     c.execute(f"""CREATE TABLE {new_table_name} AS
     SELECT 
-        mmsi,
+        uid,
         position_count,
 		ST_Length(geography(line))/1000 AS line_length_km,
 		first_date,
@@ -167,15 +167,15 @@ def make_ship_trips(new_table_name, conn):
 		last_date - first_date as time_diff,
         line
         FROM (
-                SELECT pos.mmsi,
+                SELECT pos.uid,
                 COUNT (pos.geog) as position_count,
                 ST_MakeLine((pos.geog::geometry) ORDER BY pos.time) AS line,
                 MIN (pos.time) as first_date,
                 MAX (pos.time) as last_date
                 FROM cargo_ship_position as pos
-                GROUP BY pos.mmsi) AS foo;""")
+                GROUP BY pos.uid) AS foo;""")
     conn.commit()
-    c.execute(f"""CREATE INDEX ship_trips_mmsi_idx on {new_table_name} (mmsi);""")
+    c.execute(f"""CREATE INDEX ship_trips_uid_idx on {new_table_name} (uid);""")
     conn.commit()
     c.close()
 
@@ -269,8 +269,8 @@ loc_cargo_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
 make_ship_trips('ship_trips', conn=loc_cargo_conn)
 
 c = loc_cargo_conn.cursor()
-c.execute("""CREATE INDEX ship_position_mmsi_idx 
-            on cargo_ship_position (mmsi);""")
+c.execute("""CREATE INDEX ship_position_uid_idx 
+            on cargo_ship_position (uid);""")
 loc_cargo_conn.commit()
 c.execute("""CREATE INDEX ship_position_geom_idx 
             ON cargo_ship_position USING GIST (geog);""")

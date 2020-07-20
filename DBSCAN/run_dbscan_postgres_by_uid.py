@@ -19,14 +19,14 @@ import gsta_config
 
 #%%
 def sklearn_dbscan(source_table, new_table_name, eps, min_samples, 
-                   mmsi_list, conn, engine, schema_name, 
+                   uid_list, conn, engine, schema_name, 
                    lat='lat', lon='lon'):
-    for mmsi in mmsi_list: 
-        # next get the data for the mmsi
-        read_sql = """SELECT id, mmsi, {0}, {1}
+    for uid in uid_list: 
+        # next get the data for the uid
+        read_sql = """SELECT id, uid, {0}, {1}
                     FROM {2}
-                    WHERE mmsi = '{3}'
-                    ORDER by time""".format(lat, lon, source_table, mmsi[0])
+                    WHERE uid = '{3}'
+                    ORDER by time""".format(lat, lon, source_table, uid[0])
         df = pd.read_sql_query(read_sql, con=engine)
         
         # format data for dbscan
@@ -44,13 +44,13 @@ def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
         df_results = pd.DataFrame(results_dict)
         # drop all -1 clust_id, which are all points not in clusters
         df_results = df_results[df_results['clust_id'] != -1]
-        df_results['mmsi'] = mmsi[0]
+        df_results['uid'] = uid[0]
         
         # write df to databse
         df_results.to_sql(name=new_table_name, con=engine, schema=schema_name,
                   if_exists='append', method='multi', index=False )
         
-        print('DBSCAN complete for MMSI {}.'.format(mmsi[0]))
+        print('DBSCAN complete for uid {}.'.format(uid[0]))
         
 def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples, 
                           conn, engine, schema_name, 
@@ -84,7 +84,7 @@ def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
     print('DBSCAN complete for {}.'.format(source_table))
 
 def postgres_dbscan(source_table, new_table_name, eps, min_samples, 
-                    mmsi_list, conn, schema_name, 
+                    uid_list, conn, schema_name, 
                     lat='lat', lon='lon'):
     
     # drop table if it exists
@@ -100,35 +100,35 @@ def postgres_dbscan(source_table, new_table_name, eps, min_samples,
     c.execute("""CREATE TABLE IF NOT EXISTS {}.{}
     (
         id integer,
-        mmsi text,
+        uid text,
         lat numeric,
         lon numeric,
         clust_id int
     );""".format(schema_name, new_table_name))
     conn.commit()
               
-    # iterate through each mmsi and insert into the new schema and table
-    # the id, mmsi, lat, lon, and cluster id using the epsilon in degrees.
+    # iterate through each uid and insert into the new schema and table
+    # the id, uid, lat, lon, and cluster id using the epsilon in degrees.
     # Only write back when a position's cluster id is not null.
-    for mmsi in mmsi_list:     
+    for uid in uid_list:     
         
-        dbscan_postgres_sql = """INSERT INTO {7}.{0} (id, mmsi, lat, lon, clust_id)
+        dbscan_postgres_sql = """INSERT INTO {7}.{0} (id, uid, lat, lon, clust_id)
         WITH dbscan as (
-        SELECT id, mmsi, {1}, {2},
+        SELECT id, uid, {1}, {2},
         ST_ClusterDBSCAN(geom, eps := {3}, minpoints := {4})
         over () as clust_id
         FROM {5}
-        WHERE mmsi = '{6}')
+        WHERE uid = '{6}')
         SELECT * from dbscan 
         WHERE clust_id IS NOT NULL;""".format(new_table_name, lat, lon, str(eps), 
-        str(min_samples), source_table, mmsi[0], schema_name)
+        str(min_samples), source_table, uid[0], schema_name)
         
         # execute dbscan script
         c = conn.cursor()
         c.execute(dbscan_postgres_sql)
         conn.commit()
         c.close()
-        print('MMSI {} complete.'.format(mmsi[0]))
+        print('uid {} complete.'.format(uid[0]))
         
     print('DBSCAN complete, {} created'.format(new_table_name))
 
@@ -143,13 +143,13 @@ def make_tables_geom(table, schema_name, conn):
     conn.commit()
     c.close()
     
-def get_mmsi_list(source_table, conn):
+def get_uid_list(source_table, conn):
     c = conn.cursor()
-    c.execute("""SELECT DISTINCT(mmsi) FROM {};""".format(source_table))
-    mmsi_list = c.fetchall()
-    print('{} total MMSIs returned from {}'.format(str(len(mmsi_list)), source_table))
+    c.execute("""SELECT DISTINCT(uid) FROM {};""".format(source_table))
+    uid_list = c.fetchall()
+    print('{} total uids returned from {}'.format(str(len(uid_list)), source_table))
     c.close()
-    return mmsi_list
+    return uid_list
 
 def create_schema(schema_name, conn, drop_schema=True, with_date=True):
     # add the date the run started if desired
@@ -175,9 +175,9 @@ def create_schema(schema_name, conn, drop_schema=True, with_date=True):
 def execute_dbscan(source_table, eps_samples_params, conn, engine, method='sklearn', 
                    drop_schema=False):    
     # check to make sure the method type is correct
-    method_types = ['sklearn_mmsi','postgres_mmsi', 'sklearn_rollup']
+    method_types = ['sklearn_uid','postgres_uid', 'sklearn_rollup']
     if method not in method_types:
-        print("Argument 'method' must be 'sklearn_mmsi', 'sklearn_rollup', or 'postgres_mmsi'.")
+        print("Argument 'method' must be 'sklearn_uid', 'sklearn_rollup', or 'postgres_uid'.")
         return
     
     print('{} DBSCAN begun at:'.format(method), datetime.datetime.now())
@@ -186,9 +186,9 @@ def execute_dbscan(source_table, eps_samples_params, conn, engine, method='sklea
     # make the new schema for todays date and the method.
     schema_name = create_schema(method, conn, drop_schema=drop_schema, with_date=True)
     
-    if method in ['sklearn_mmsi','postgres_mmsi']:
-        # get the mmsi list from the source table.
-        mmsi_list = get_mmsi_list(source_table, conn)
+    if method in ['sklearn_uid','postgres_uid']:
+        # get the uid list from the source table.
+        uid_list = get_uid_list(source_table, conn)
     else: pass
 
     # itearate through the epsilons and samples given
@@ -213,10 +213,10 @@ def execute_dbscan(source_table, eps_samples_params, conn, engine, method='sklea
 
         if method == 'postgres':
             postgres_dbscan(source_table, new_table_name, eps, min_samples, 
-                            mmsi_list, conn, schema_name)
+                            uid_list, conn, schema_name)
         elif method == 'sklearn':
             sklearn_dbscan(source_table, new_table_name, eps, min_samples, 
-                           mmsi_list, conn, engine, schema_name)
+                           uid_list, conn, engine, schema_name)
         elif method == 'sklearn_rollup':
             sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples, 
                           conn, engine, schema_name)

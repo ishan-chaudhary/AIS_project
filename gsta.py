@@ -81,14 +81,14 @@ def dedupe_table(table, conn):
 
 # %% DBSCAN run helper functions
 def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
-                   mmsi_list, conn, engine, from_schema_name, to_schema_name,
+                   uid_list, conn, engine, from_schema_name, to_schema_name,
                    lat='lat', lon='lon'):
-    for mmsi in mmsi_list:
-        # next get the data for the mmsi
-        read_sql = """SELECT id, mmsi, {0}, {1}
+    for uid in uid_list:
+        # next get the data for the uid
+        read_sql = """SELECT id, uid, {0}, {1}
                     FROM {2}.{3}
-                    WHERE mmsi = '{4}'
-                    ORDER by time""".format(lat, lon, from_schema_name, source_table, mmsi[0])
+                    WHERE uid = '{4}'
+                    ORDER by time""".format(lat, lon, from_schema_name, source_table, uid[0])
         df = pd.read_sql_query(read_sql, con=engine)
 
         # format data for dbscan
@@ -106,13 +106,13 @@ def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
         df_results = pd.DataFrame(results_dict)
         # drop all -1 clust_id, which are all points not in clusters
         df_results = df_results[df_results['clust_id'] != -1]
-        df_results['mmsi'] = mmsi[0]
+        df_results['uid'] = uid[0]
 
         # write df to databse
         df_results.to_sql(name=new_table_name, con=engine, schema=to_schema_name,
                           if_exists='append', method='multi', index=False)
 
-        print('DBSCAN complete for MMSI {}.'.format(mmsi[0]))
+        print('DBSCAN complete for uid {}.'.format(uid[0]))
 
 
 def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
@@ -146,7 +146,7 @@ def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
 
 
 def postgres_dbscan(source_table, new_table_name, eps, min_samples,
-                    mmsi_list, conn, from_schema_name, to_schema_name):
+                    uid_list, conn, from_schema_name, to_schema_name):
     # drop table if it exists
     c = conn.cursor()
     c.execute("""DROP TABLE IF EXISTS {}.{}""".format(to_schema_name, new_table_name))
@@ -158,32 +158,32 @@ def postgres_dbscan(source_table, new_table_name, eps, min_samples,
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS {}.{}
     (   id integer,
-        mmsi text,
+        uid text,
         lat numeric,
         lon numeric,
         clust_id int
     );""".format(to_schema_name, new_table_name))
     conn.commit()
-    # iterate through each mmsi and insert into the new schema and table
-    # the id, mmsi, lat, lon, and cluster id using the epsilon in degrees.
+    # iterate through each uid and insert into the new schema and table
+    # the id, uid, lat, lon, and cluster id using the epsilon in degrees.
     # Only write back when a position's cluster id is not null.
-    for mmsi in mmsi_list:
-        dbscan_postgres_sql = """INSERT INTO {0}.{1} (id, mmsi, lat, lon, clust_id)
+    for uid in uid_list:
+        dbscan_postgres_sql = """INSERT INTO {0}.{1} (id, uid, lat, lon, clust_id)
         WITH dbscan as (
-        SELECT id, mmsi, lat, lon,
+        SELECT id, uid, lat, lon,
         ST_ClusterDBSCAN(geom, eps := {2}, minpoints := {3})
         over () as clust_id
         FROM {6}.{4}
-        WHERE mmsi = '{5}')
+        WHERE uid = '{5}')
         SELECT * from dbscan
         WHERE clust_id IS NOT NULL;""".format(schema_name, new_table_name, str(eps),
-                                              str(min_samples), source_table, mmsi[0], from_schema_name)
+                                              str(min_samples), source_table, uid[0], from_schema_name)
         # execute dbscan script
         c = conn.cursor()
         c.execute(dbscan_postgres_sql)
         conn.commit()
         c.close()
-        print('MMSI {} complete.'.format(mmsi[0]))
+        print('uid {} complete.'.format(uid[0]))
     print('DBSCAN complete, {} created'.format(new_table_name))
 
 
@@ -201,14 +201,14 @@ def make_tables_geom(table, schema_name, conn):
     c.close()
 
 
-def get_mmsi_list(source_table, conn):
-    """For a given source table, return the list of distinct MMSIs."""
+def get_uid_list(source_table, conn):
+    """For a given source table, return the list of distinct uids."""
     c = conn.cursor()
-    c.execute("""SELECT DISTINCT(mmsi) FROM {};""".format(source_table))
-    mmsi_list = c.fetchall()
-    print('{} total MMSIs returned from {}'.format(str(len(mmsi_list)), source_table))
+    c.execute("""SELECT DISTINCT(uid) FROM {};""".format(source_table))
+    uid_list = c.fetchall()
+    print('{} total uids returned from {}'.format(str(len(uid_list)), source_table))
     c.close()
-    return mmsi_list
+    return uid_list
 
 
 def create_schema(schema_name, conn, drop_schema=True, with_date=True):
@@ -237,17 +237,17 @@ def create_schema(schema_name, conn, drop_schema=True, with_date=True):
 def execute_dbscan(source_table, from_schema_name, to_schema_name, eps_samples_params,
                    conn, engine, method='sklearn', drop_schema=False):
     # check to make sure the method type is correct
-    method_types = ['sklearn_mmsi', 'postgres_mmsi', 'sklearn_rollup']
+    method_types = ['sklearn_uid', 'postgres_uid', 'sklearn_rollup']
     if method not in method_types:
-        print("Argument 'method' must be 'sklearn_mmsi', 'sklearn_rollup', or 'postgres_mmsi'.")
+        print("Argument 'method' must be 'sklearn_uid', 'sklearn_rollup', or 'postgres_uid'.")
         return
 
     print('{} DBSCAN begun at:'.format(method), datetime.datetime.now())
     outer_tick = datetime.datetime.now()
 
-    if method in ['sklearn_mmsi', 'postgres_mmsi']:
-        # get the mmsi list from the source table.
-        mmsi_list = get_mmsi_list(source_table, conn)
+    if method in ['sklearn_uid', 'postgres_uid']:
+        # get the uid list from the source table.
+        uid_list = get_uid_list(source_table, conn)
     else:
         pass
 
@@ -271,12 +271,12 @@ def execute_dbscan(source_table, from_schema_name, to_schema_name, eps_samples_p
         new_table_name = (method + '_' + str(eps_km).replace('.', '_') +
                           '_' + str(min_samples))
 
-        if method == 'postgres_mmsi':
+        if method == 'postgres_uid':
             postgres_dbscan(source_table, new_table_name, eps, min_samples,
-                            mmsi_list, conn, from_schema_name, to_schema_name, )
-        elif method == 'sklearn_mmsi':
+                            uid_list, conn, from_schema_name, to_schema_name, )
+        elif method == 'sklearn_uid':
             sklearn_dbscan(source_table, new_table_name, eps, min_samples,
-                           mmsi_list, conn, engine, from_schema_name, to_schema_name, )
+                           uid_list, conn, engine, from_schema_name, to_schema_name, )
         elif method == 'sklearn_rollup':
             sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
                                   conn, engine, from_schema_name, to_schema_name, )
@@ -441,10 +441,10 @@ def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled,
         table = (method_used + '_' + str(eps_km).replace('.', '_') + '_' + str(min_samples))
         df_results = pd.read_sql_table(table_name=table, con=engine, schema=schema_name,
                                        columns=[id_value, 'lat', 'lon', clust_id_value])
-        # since we created clusters by mmsi, we are going to need to redefine
-        # clust_id to include the mmsi and clust_id
-        # since we created clusters by mmsi, we are going to need to redefine
-        # clust_id to include the mmsi and clust_id
+        # since we created clusters by uid, we are going to need to redefine
+        # clust_id to include the uid and clust_id
+        # since we created clusters by uid, we are going to need to redefine
+        # clust_id to include the uid and clust_id
         df_results['clust_id'] = (df_results[id_value] + '_' +
                                   df_results[clust_id_value].astype(int).astype(str))
 
@@ -517,27 +517,27 @@ def get_edgelist(edge_table, engine, loiter_time=2):
     # these are the "stops" we will use to build our edgelist.
     df_stops = pd.read_sql_query(f"""select edge.node, edge.arrival_time, 
                                  edge.depart_time, edge.time_diff,
-                                 edge.destination, edge.position_count, edge.mmsi, 
+                                 edge.destination, edge.position_count, edge.uid, 
                                  wpi.port_name
                                  from {edge_table} as edge, wpi as wpi
                                  where edge.node=wpi.index_no and
                                  edge.node > 0 and
                                  time_diff > '{str(loiter_time)} hours';""", engine)
-    df_stops.sort_values(['mmsi', 'arrival_time'], inplace=True)
+    df_stops.sort_values(['uid', 'arrival_time'], inplace=True)
 
     # to build the edge list, we will take the pieces from stops for the current node and the next node
     df_list = pd.concat([df_stops.node, df_stops.port_name,
                          df_stops.node.shift(-1), df_stops.port_name.shift(-1),
-                         df_stops.mmsi, df_stops.mmsi.shift(-1),
+                         df_stops.uid, df_stops.uid.shift(-1),
                          df_stops.depart_time, df_stops.arrival_time.shift(-1)], axis=1)
     # rename the columns
     df_list.columns = ['Source_id', 'Source', 'Target_id', 'Target',
-                       'mmsi', 'target_mmsi', 'source_depart', 'target_arrival']
-    # drop any row where the mmsi is not the same.
+                       'uid', 'target_uid', 'source_depart', 'target_arrival']
+    # drop any row where the uid is not the same.
     # this will leave only the rows with at least 2 nodes with valid stops, making one valid edge.
     # The resulting df is the full edge list
-    df_list = (df_list[df_list['mmsi'] == df_list['target_mmsi']]
-               .drop('target_mmsi', axis=1))
+    df_list = (df_list[df_list['uid'] == df_list['target_uid']]
+               .drop('target_uid', axis=1))
     # this filters ou self-loops
     df_edgelist_full = df_list[df_list['Source_id'] != df_list['Target_id']]
     return df_edgelist_full
@@ -547,23 +547,23 @@ def get_weighted_edgelist(df_edgelist):
     # This produces a df that is the summarized edge list with weights
     # for the numbers of a time a ship goes from the source node to the target node.
     # The code executes groupby the source/target id/name, count all the rows, drop the time fields,
-    # rename the remaining column from mmsi to weight, and reset the index
+    # rename the remaining column from uid to weight, and reset the index
     df_edgelist_weighted = (df_edgelist.groupby(['Source_id', 'Source',
                                                  'Target_id', 'Target'])
                             .count()
                             .drop(['source_depart', 'target_arrival'], axis=1)
-                            .rename(columns={'mmsi': 'weight'})
+                            .rename(columns={'uid': 'weight'})
                             .reset_index())
     return df_edgelist_weighted
 
 
 
-def plot_mmsi(mmsi, df_edgelist):
-    # this function will plot the path of a given mmsi across an edgelist df.
-    mmsi_edgelist = df_edgelist[df_edgelist['mmsi'] == mmsi].reset_index(drop=True)
-    mmsi_edgelist = mmsi_edgelist[['Source', 'source_depart', 'Target', 'target_arrival']]
+def plot_uid(uid, df_edgelist):
+    # this function will plot the path of a given uid across an edgelist df.
+    uid_edgelist = df_edgelist[df_edgelist['uid'] == uid].reset_index(drop=True)
+    uid_edgelist = uid_edgelist[['Source', 'source_depart', 'Target', 'target_arrival']]
     # build the graph
-    G = nx.from_pandas_edgelist(mmsi_edgelist, source='Source', target='Target',
+    G = nx.from_pandas_edgelist(uid_edgelist, source='Source', target='Target',
                                 edge_attr=True, create_using=nx.MultiDiGraph)
     # get positions for all nodes using circular layout
     pos = nx.circular_layout(G)
@@ -582,11 +582,11 @@ def plot_mmsi(mmsi, df_edgelist):
     x_margin = (x_max - x_min) * 0.25
     plt.xlim(x_min - x_margin, x_max + x_margin)
     # plot the title and turn off the axis
-    plt.title(f'Network Plot for MMSI {str(mmsi).title()}')
+    plt.title(f'Network Plot for uid {str(uid).title()}')
     plt.axis('off')
     plt.show()
 
-    print(mmsi_edgelist)
+    print(uid_edgelist)
 
 
 def plot_from_source(source, df):
@@ -640,3 +640,75 @@ def scale_range(input, min, max):
     input /= np.max(input) / (max - min)
     input += min
     return input
+
+def get_uid_history(uid, df_edgelist, print=False):
+    # make an df with all the edges for one uid
+    df = df_edgelist[df_edgelist['uid'] == uid]
+    # get all of the previous ports from that uid as sample, except for the last port
+    sample = df['Source'].iloc[:].str.replace(' ', '_').values
+    # the last port is the target
+    target = df['Target'].iloc[-1].replace(' ', '_')
+    # concat all the samples into one string
+    uid_hist = ''
+    for s in sample:
+        uid_hist = uid_hist + ' ' + s
+    # add the target to the str
+    uid_hist = uid_hist + ' ' + target
+    if print == True:
+        print(f'Previous {str(len(uid_hist.split()) - 1)} ports for {uid} are:', uid_hist.split()[:-1])
+        print('Next port is:', target)
+    return (uid_hist.strip())
+
+
+def build_history(df_edgelist):
+    # build a history that includes all port visits per uid as a dict with the uid as
+    # the key and the strings of each port visited as the values
+    # make sure to replace ' ' with '_' in the strings so multi-word ports are one str
+    history = dict()
+    # get all unique uids
+    uids = df_edgelist['uid'].unique()
+    for uid in uids:
+        uid_edgelist = df_edgelist[df_edgelist['uid'] == uid]
+        uid_str = ''
+        # add all the sources from the source column
+        for s in uid_edgelist['Source'].values:
+            uid_str = uid_str + ' ' + (s.replace(' ', '_'))
+        # after adding all the sources, we still need to add the last target.
+        # adding all the sources will provide the history of all but the n-1 port
+        uid_str = uid_str + ' ' + (uid_edgelist['Target'].iloc[-1].replace(' ', '_'))
+        # only add this history to the dict if the len of the value (# of ports) is >= 2
+        if len(uid_str.split()) >= 2:
+            history[uid] = uid_str.strip()
+    return history
+
+def build_history_multiprocess(df_edgelist, df_max_len=100000, numb_workers=6):
+    # need to split the edgelist to relatively equal pieces with complete uid histories
+    numb_dfs = (len(df_edgelist) // df_max_len)
+    uids = np.array(df_edgelist['uid'].unique())
+    split_uids = np.array_split(uids, numb_dfs)
+    list_df = []
+    for split in split_uids:
+        df_piece = df_edgelist[df_edgelist['uid'].isin(split)]
+        list_df.append(df_piece)
+
+    if __name__ == '__main__':
+        with Pool(numb_workers) as p:
+            history_pieces = p.map(build_history, list_df)
+
+    # recombine pieces
+    history = dict()
+    for piece in history_pieces:
+        for k, v in piece.items():
+            history[k] = v
+    return history
+
+
+def history_split(history, test_percent=.2):
+    history_test = dict()
+    history_train = dict()
+    for k, v in history.items():
+        if random.random() > test_percent:
+            history_train[k] = v
+        else:
+            history_test[k] = v
+    return history_train, history_test

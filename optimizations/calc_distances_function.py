@@ -23,7 +23,7 @@ ports_wpi = gsta.get_ports_wpi(loc_engine)
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS nearest_port
 (   id int,
-    mmsi text,
+    uid text,
     time timestamp,
     nearest_port_id int,
     nearest_port_dist_km float
@@ -42,7 +42,7 @@ tree = BallTree(candidates, leaf_size=40, metric='haversine')
 from_schema_name = 'public'
 source_table = 'cargo_ship_position'
 new_table_name = 'nearest_port'
-read_sql = """SELECT id, mmsi, time, lat, lon
+read_sql = """SELECT id, uid, time, lat, lon
             FROM {0}.{1};
             """.format(from_schema_name, source_table)
 chunksize = 100000
@@ -53,15 +53,15 @@ for df in generator:
     iteration_start = datetime.now()
     # Now we are going to use sklearn's BallTree to find the nearest neighbor of
     # each position for the nearest port.  The resulting port_id and dist will be
-    # pushed back to the db with the id, mmsi, and time to be used in the network
+    # pushed back to the db with the id, uid, and time to be used in the network
     # building phase of analysis.  This takes up more memory, but means we have
-    # fewer joins.  Add an index on mmsi though before running network building.
+    # fewer joins.  Add an index on uid though before running network building.
     points_of_int = np.radians(df.loc[:, ['lat', 'lon']].values)
     nearest_list = []
     for i in range(len((points_of_int))):
         dist, ind = tree.query(points_of_int[i,:].reshape(1, -1), k=1)
         nearest_dict ={'id':df['id'].iloc[i],
-                       'mmsi':df['mmsi'].iloc[i],
+                       'uid':df['uid'].iloc[i],
                        'time': df['time'].iloc[i],
                        'nearest_port_id':ports_wpi.iloc[ind[0][0]].loc['port_id'],
                        'nearest_port_dist_km':dist[0][0]*6371.0088}

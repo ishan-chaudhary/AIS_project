@@ -23,20 +23,20 @@ df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, 
 # %% This produces a df that is the summarized edge list with weights
 # for the numbers of a time a ship goes from the source node to the target node.
 # The code executes groupby the source/target id/name, count all the rows, drop the time fields,
-# rename the remaining column from mmsi to weight, and reset the index
+# rename the remaining column from uid to weight, and reset the index
 df_edgelist_weighted = gsta.get_weighted_edgelist(df_edgelist=df_edgelist)
 
 print(len(df_edgelist_weighted[df_edgelist_weighted['weight'] < 2]))
 df_edgelist_weighted[df_edgelist_weighted['weight'] > 2].to_csv('edgelist_weighted.csv', index=False)
 
-#%% test mmsi plot function
-mmsi = '636016432'
-gsta.plot_mmsi(mmsi, df_edgelist)
+#%% test uid plot function
+uid = '636016432'
+gsta.plot_uid(uid, df_edgelist)
 
-#%% explore random mmsi plots
-sample_mmsi = df_edgelist['mmsi'].sample().values[0]
-print(sample_mmsi)
-gsta.plot_mmsi(sample_mmsi, df_edgelist)
+#%% explore random uid plots
+sample_uid = df_edgelist['uid'].sample().values[0]
+print(sample_uid)
+gsta.plot_uid(sample_uid, df_edgelist)
 
 #%% Plot all nodes from Boston
 gsta.plot_from_source("Boston", df_edgelist_weighted)

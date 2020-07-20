@@ -155,7 +155,7 @@ def evaluate_ngram(uid_history, predicted, top):
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 
-history = build_history(df_edgelist)
+history = build_history_multiprocess(df_edgelist)
 history_train, history_test = history_split(history, test_percent=.2)
 
 last_tock = datetime.datetime.now()

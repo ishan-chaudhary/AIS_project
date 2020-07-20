@@ -158,11 +158,11 @@ def analyze_dbscan(method, engine, schema_name, ports_labeled, eps_samples_param
         table = (method + str(eps_km).replace('.','_') + '_' + str(min_samples))
     
         df_results = pd.read_sql_table(table_name=table, con=engine, schema=schema_name, 
-                                 columns=['id', 'mmsi', 'lat','lon', 'clust_id'])
+                                 columns=['id', 'uid', 'lat','lon', 'clust_id'])
 
-        # since we created clusters by mmsi, we are going to need to redefine 
-        # clust_id to include the mmsi and clust_id        
-        df_results['clust_id'] = (df_results['mmsi'] + '_' + 
+        # since we created clusters by uid, we are going to need to redefine 
+        # clust_id to include the uid and clust_id        
+        df_results['clust_id'] = (df_results['uid'] + '_' + 
                                   df_results['clust_id'].astype(int).astype(str))
 
         #determine the cluster center point, and find the distance to nearest port
@@ -237,7 +237,7 @@ for p in eps_samples_params:
           .format(str(eps_km), str(min_samples)))
     
     # execute the analyze_dbscan function
-    rollup_dict = analyze_dbscan('sklearn_mmsi', engine=loc_engine, 
+    rollup_dict = analyze_dbscan('sklearn_uid', engine=loc_engine, 
                                  schema_name='sklearn_dbscan_results_2020_05_13',
                                  ports_5k='ports_5k_sample_positions', 
                                  eps_km=eps_km, min_samples=min_samples)

@@ -53,7 +53,7 @@ for f in features_for_plot:
 #%% Scaling
 key_features = [#'average_max_dist_from_center', #minimize
                 'average_nearest_port_from_center', #minimize, high rank
-                #'average_mmsi_per_clust', #maximise
+                #'average_uid_per_clust', #maximise
                 'prop_where_most_points_labeled_as_in_ports'] #maximize, high rank
 
 df = final_df[key_features]
@@ -79,7 +79,7 @@ for m in minimized_metrics:
 df_scaled['average'] = df_scaled.mean(axis=1)
 df_scaled['weighted'] = ((df_scaled['average_max_dist_from_center'] * .1) +
                         (df_scaled['average_nearest_port_from_center'] * .2) +
-                        #(df_scaled['average_mmsi_per_clust'] * .1) +
+                        #(df_scaled['average_uid_per_clust'] * .1) +
                         (df_scaled['prop_where_most_points_labeled_as_in_ports'] * .3) +
                         (df_scaled['clust_numb_where_most_points_labeled_as_in_ports'] * .3))
 
