@@ -16,6 +16,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+# NGRAMS
+import random
+from collections import defaultdict
+from nltk import ngrams
+
 import networkx as nx
 
 from sklearn.cluster import DBSCAN
@@ -657,7 +662,7 @@ def get_uid_history(uid, df_edgelist, print=False):
     if print == True:
         print(f'Previous {str(len(uid_hist.split()) - 1)} ports for {uid} are:', uid_hist.split()[:-1])
         print('Next port is:', target)
-    return (uid_hist.strip())
+    return uid_hist.strip()
 
 
 def build_history(df_edgelist):
@@ -681,27 +686,6 @@ def build_history(df_edgelist):
             history[uid] = uid_str.strip()
     return history
 
-def build_history_multiprocess(df_edgelist, df_max_len=100000, numb_workers=6):
-    # need to split the edgelist to relatively equal pieces with complete uid histories
-    numb_dfs = (len(df_edgelist) // df_max_len)
-    uids = np.array(df_edgelist['uid'].unique())
-    split_uids = np.array_split(uids, numb_dfs)
-    list_df = []
-    for split in split_uids:
-        df_piece = df_edgelist[df_edgelist['uid'].isin(split)]
-        list_df.append(df_piece)
-
-    if __name__ == '__main__':
-        with Pool(numb_workers) as p:
-            history_pieces = p.map(build_history, list_df)
-
-    # recombine pieces
-    history = dict()
-    for piece in history_pieces:
-        for k, v in piece.items():
-            history[k] = v
-    return history
-
 
 def history_split(history, test_percent=.2):
     history_test = dict()
@@ -712,3 +696,79 @@ def history_split(history, test_percent=.2):
         else:
             history_test[k] = v
     return history_train, history_test
+
+
+def build_ngram_model(history, N):
+    # first build a new dict from history that has at least N ports
+    historyN = dict()
+    for k, v in history.items():
+        if len(v.split()) > N:
+            historyN[k] = v.strip()
+    # Create a placeholder for model that uses the default dict.
+    #  the lambda:0 means any new key will have a value of 0
+    model = defaultdict(lambda: defaultdict(lambda: 0))
+    # build tuple of wN to pass to the model dict
+    wordsN = ()
+    for i in range(1, N + 1, 1):
+        wordsN = wordsN + ('w' + str(i),)
+    # Count frequency
+    # in history, the key is the uid, the value is the string of ports visited
+    for k, v in historyN.items():
+        # we split each value and for each Ngram, we populate the model
+        # each key is the N-1 ports, and the value is the last port.
+        # in this way a trigram uses the first two ports to determine probability
+        # the third port was vistied
+        for wordsN in ngrams(v.split(), N):
+            model[wordsN[:-1]][wordsN[-1]] += 1
+    # transform the counts to probabilities and populate the model dict
+    for key in model:
+        total_count = float(sum(model[key].values()))
+        for target in model[key]:
+            model[key][target] /= total_count
+    return model
+
+
+def predict_ngram(uid_history, model, N, print=False):
+    # check to see if the provided uid history has min N number of stops
+    if len(uid_history.split()) < N:
+        if print == True:
+            print('uid History has fewer than N number of ports visited.')
+            print('Cannot make a prediction')
+        return None
+    else:
+        # add the last n ports (except for the last one) to a tuple to pass to the model
+        words = ()
+        for i in range(N, 1, -1):
+            words = words + (uid_history.split()[-i],)
+        # get the predicted port based on the model.  predicted is a dict
+        predicted = dict(model[words])
+        # sort predicted so largest value is first
+        predicted = {k: v for k, v in sorted(predicted.items(), key=lambda item: item[1], reverse=True)}
+
+        if print == True:
+            print('Top ports (limited to 5) are:')
+            # print results
+            if len(predicted) >= 5:
+                for p in sorted(predicted, key=predicted.get, reverse=True)[:5]:
+                    print(p, predicted[p])
+            else:
+                for p in sorted(predicted, key=predicted.get, reverse=True):
+                    print(p, predicted[p])
+            # collect results for analysis
+            if len(predicted) >= 5:
+                for p in (sorted(predicted, key=predicted.get, reverse=True)[:5][0]):
+                    if p == uid_history.split()[-1]:
+                        print('TRUE!!!')
+        return predicted
+
+
+def evaluate_ngram(uid_history, predicted, top):
+    if predicted == None or bool(predicted) == False:
+        return None
+    else:
+        keys = list(predicted.keys())
+        target = uid_history.split()[-1]
+        if target in keys[:top]:
+            return True
+        else:
+            return False
