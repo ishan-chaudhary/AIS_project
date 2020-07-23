@@ -53,7 +53,27 @@ df_edgelist.dropna(inplace=True)
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 
-history_orig = gsta.build_history_multiprocess(df_edgelist)
+# need to split the edgelist to relatively equal pieces with complete uid histories
+df_max_len = 100000
+numb_workers = 6
+numb_dfs = (len(df_edgelist) // df_max_len)
+uids = np.array(df_edgelist['uid'].unique())
+split_uids = np.array_split(uids, numb_dfs)
+list_df = []
+for split in split_uids:
+    df_piece = df_edgelist[df_edgelist['uid'].isin(split)]
+    list_df.append(df_piece)
+
+if __name__ == '__main__':
+    with Pool(numb_workers) as p:
+        history_pieces = p.map(gsta.build_history, list_df)
+
+# recombine pieces
+history = dict()
+for piece in history_pieces:
+    for k, v in piece.items():
+        history[k] = v
+
 
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
