@@ -135,3 +135,134 @@ bsas_in_radians = np.radians(bsas)
 paris_in_radians = np.radians(paris)
 result = haversine_distances(bsas_in_radians, paris_in_radians)
 result_km = result * 6371000/1000  # multiply by Earth radius to get kilometers
+
+
+#%% writing to db
+#
+#
+# #%% exploration
+# start = datetime.now()
+# # build the BallTree using the ports as the candidates
+# candidates = np.radians(sites.loc[:, ['lat', 'lon']].values)
+# tree = BallTree(candidates, leaf_size=40, metric='haversine')
+# tracker = dict()
+# #%%
+# start = datetime.now()
+# size = 50000
+#
+# read_sql = f"""SELECT id, uid, time, lat, lon
+#             FROM uid_positions_sample limit {size};"""
+#
+# # read the dataframe
+# df = pd.read_sql(sql=read_sql, con=loc_engine)
+# # transform to radians
+# points_of_int = np.radians(df.loc[:, ['lat', 'lon']].values)
+# # query the tree
+# dist, ind = tree.query(points_of_int, k=1, dualtree=True)
+# # build the results into a df
+# df_nearest = pd.DataFrame([df['id'], df['uid'], df['time'],
+#                            sites.iloc[ind.reshape(1, -1)[0], :].port_id.values,
+#                            (dist.reshape(1, -1)[0]*6371.0088)]).T
+# df_nearest.columns = ['id', 'uid', 'time', 'nearest_port_id', 'nearest_port_dist_km']
+#
+# # write df to database
+# df_nearest.to_sql(name='nearest_port', con=loc_engine, if_exists='append',
+#                   method='multi', index=False)
+# lapse = (datetime.now()-start).total_seconds()
+# print(f'Total Lapse: for {size}:', lapse)
+# print(f'{round((size/lapse),3)} rows per second')
+# tracker[size] = round((size/lapse),3)
+#
+#
+#
+#
+#
+#
+#
+# #%%
+# start = datetime.now()
+# # build the BallTree using the ports as the candidates
+# candidates = np.radians(sites.loc[:, ['lat', 'lon']].values)
+#
+# tree = BallTree(candidates, leaf_size=40, metric='haversine')
+#
+# #%%
+# start = datetime.now()
+# size = 50000
+#
+# read_sql = f"""SELECT id, lat, lon
+#             FROM uid_positions limit {size};"""
+#
+# # read the dataframe
+# df = pd.read_sql(sql=read_sql, con=loc_engine)
+# # transform to radians
+# points_of_int = np.radians(df.loc[:, ['lat', 'lon']].values)
+# # query the tree
+# dist, ind = tree.query(points_of_int, k=1, dualtree=True)
+# # build the results into a df
+# df_nearest = pd.DataFrame([df['id'],
+#                            sites.iloc[ind.reshape(1, -1)[0], :].port_id.values,
+#                            (dist.reshape(1, -1)[0]*6371.0088)]).T
+# df_nearest.columns = ['id', 'nearest_port_id', 'nearest_port_dist_km']
+#
+# # write df to database
+# df_nearest.to_sql(name='nearest_site', con=loc_engine, if_exists='append',
+#                   method='multi', index=False)
+# lapse = (datetime.now()-start).total_seconds()
+# print(f'Total Lapse: for {size}:', lapse)
+# print(f'{round((size/lapse),3)} rows per second')
+# tracker[size] = round((size/lapse),3)
+#
+#
+#
+#
+#
+#
+#
+# #%%
+# size = 500000
+# start = datetime.now()
+#
+# read_sql = f"""SELECT id, lat, lon
+#             FROM uid_positions limit {size};"""
+#
+# # read the dataframe
+# df = pd.read_sql(sql=read_sql, con=loc_engine)
+# # transform to radians
+# points_of_int = np.radians(df.loc[:, ['lat', 'lon']].values)
+# # query the tree
+# dist, ind = tree.query(points_of_int, k=1, dualtree=True)
+#
+# data = np.column_stack((np.round(((dist.reshape(1, -1)[0])*6371.0088), decimals=3),
+#                         sites.iloc[ind.reshape(1, -1)[0], :].port_id.values.astype('int'),
+#                         df['id'].values))
+#
+# sql_insert = "INSERT INTO nearest_site (nearest_port_dist_km, nearest_port_id, id) " \
+#              "VALUES(%s, %s, %s);"
+#
+# conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+#
+# c = conn.cursor()
+# c.executemany(sql_insert, (data.tolist()))
+# conn.commit()
+# c.close()
+# conn.close()
+#
+# lapse = (datetime.now()-start).total_seconds()
+# print(f'Total Lapse: for {size}:', lapse)
+# print(f'{round((size/lapse),3)} rows per second')
+# #%% time trials
+# start = datetime.now()
+# sql_insert = "INSERT INTO nearest_site (nearest_port_dist_km, nearest_port_id, id) " \
+#              "VALUES(%s);"
+#
+# conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+#
+# c = conn.cursor()
+# execute_values(cur=c, sql=sql_insert, argslist=data.tolist()[0])
+# conn.commit()
+# c.close()
+# conn.close()
+# lapse = (datetime.now()-start).total_seconds()
+# print(f'Total Lapse: for {size}:', lapse)
+# print(f'{round((size/lapse),3)} rows per second')

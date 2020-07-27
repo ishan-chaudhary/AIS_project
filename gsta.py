@@ -5,28 +5,33 @@ Created on Sat Mar 14 09:44:23 2020
 
 @author: patrickmaus
 """
-# time tracking
-import datetime
-import os
-
+# db connections
+import numpy as np
 import psycopg2
 from sqlalchemy import create_engine
 
+# utility modules
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import datetime
+import os
 
 # NGRAMS
 import random
 from collections import defaultdict
 from nltk import ngrams
 
+# n etwork tools
 import networkx as nx
 
+# sklearn tools
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import BallTree
 from sklearn.metrics.pairwise import haversine_distances
 
+from psycopg2.extensions import register_adapter, AsIs
+psycopg2.extensions.register_adapter(np.int64, psycopg2._psycopg.AsIs)
 
 # %% Database connection functions
 def connect_psycopg2(params):
@@ -302,14 +307,15 @@ def execute_dbscan(source_table, from_schema_name, to_schema_name, eps_samples_p
 
 
 ## Analyze DBSCAN helper functions
-def get_ports_wpi(engine):
+def get_sites(engine):
     """Creates a df with all the ports from the WPI"""
-    ports = pd.read_sql_table(table_name='wpi', con=engine, columns=['index_no', 'port_name', 'latitude', 'longitude'])
-    ports = ports.rename(columns={'latitude': 'lat', 'longitude': 'lon', 'index_no': 'port_id'})
-    return ports
+    sites = pd.read_sql_table(table_name='sites', con=engine,
+                              columns=['site_id', 'port_name', 'latitude', 'longitude'])
+    sites = sites.rename(columns={'latitude': 'lat', 'longitude': 'lon', 'site_id': 'port_id'})
+    return sites
 
 
-def get_ports_labeled(table_name, engine):
+def get_sites_labeled(table_name, engine):
     """Creates a df with all the labeled ports derived from earlier process in the data ETL"""
     ports_labeled = pd.read_sql_table(table_name, con=engine,
                                       columns=['port_name', 'nearest_port_id', 'count'])
@@ -321,7 +327,7 @@ def calc_dist(df_results, clust_id_value, engine):
     determines the nearest port, and finds the average distance for each
     cluster point from its cluster center.  Returns a df."""
 
-    ports_wpi = get_ports_wpi(engine)
+    ports_wpi = get_sites(engine)
 
     # make a new df from the df_results grouped by cluster id
     # with the mean for lat and long
@@ -382,7 +388,7 @@ def calc_harmonic_mean(precision, recall):
 
 
 def calc_stats(df_rollup, ports_labeled, engine, noise_filter):
-    df_ports_labeled = get_ports_labeled(ports_labeled, engine)
+    df_ports_labeled = get_sites_labeled(ports_labeled, engine)
     # determine the recall, precision, and f-measure
     # drop all duplicates in the rollup df to get just the unique port_ids
     # join to the list of all ports within a set distance of positions.
@@ -525,7 +531,7 @@ def get_edgelist(edge_table, engine, loiter_time=2):
                                  edge.destination, edge.position_count, edge.uid, 
                                  wpi.port_name
                                  from {edge_table} as edge, wpi as wpi
-                                 where edge.node=wpi.index_no and
+                                 where edge.node=sites.site_id and
                                  edge.node > 0 and
                                  time_diff > '{str(loiter_time)} hours';""", engine)
     df_stops.sort_values(['uid', 'arrival_time'], inplace=True)
@@ -560,7 +566,6 @@ def get_weighted_edgelist(df_edgelist):
                             .rename(columns={'uid': 'weight'})
                             .reset_index())
     return df_edgelist_weighted
-
 
 
 def plot_uid(uid, df_edgelist):
@@ -629,10 +634,10 @@ def plot_from_source(source, df):
     #                str(values[0]['weight']) + '\n')
 
     plt.text(-1.2, -1.2, 'Edge Weights are scaled between 0.5 and 5 for visualization.', fontsize=12,
-          verticalalignment='top', horizontalalignment='left')
+             verticalalignment='top', horizontalalignment='left')
     plt.show()  # display
 
-    print(df_g[['Target','weight']].sort_values('weight', ascending=False).reset_index())
+    print(df_g[['Target', 'weight']].sort_values('weight', ascending=False).reset_index())
 
 
 def scale_range(input, min, max):
@@ -645,6 +650,7 @@ def scale_range(input, min, max):
     input /= np.max(input) / (max - min)
     input += min
     return input
+
 
 def get_uid_history(uid, df_edgelist, print=False):
     # make an df with all the edges for one uid
