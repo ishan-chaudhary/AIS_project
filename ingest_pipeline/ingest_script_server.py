@@ -32,8 +32,7 @@ c.execute("""CREATE TABLE IF NOT EXISTS imported_data
 (uid text, 
 time timestamp, 
 lat numeric, 
-lon numeric,
-ship_type int);""")
+lon numeric);""")
 conn.commit()
 c.close()
 # %% drop other tables
@@ -110,7 +109,9 @@ def parse_SQL(file_name, conn=conn):
     for df in generator:
         df = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'VesselType']]
         df.columns = ['uid', 'time', 'lat', 'lon', 'ship_type']
+        df = df[df['ship_type'].isin([70,71,72,73,74,75,76,77,78,79,1003,1004,1016])]
         df['time'] = pd.to_datetime(df['time'])
+        df.drop('ship_type', inplace=True, axis=1)
         df.to_sql(name='imported_data', con=loc_engine, if_exists='append', method='multi', index=False)
     print('Copying complete!')
     # this will only insert positions from cargo ship types
@@ -120,9 +121,7 @@ def parse_SQL(file_name, conn=conn):
                 ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
                 lat, 
                 lon 
-                FROM imported_data
-                where ship_type IN (
-                70,71,72,73,74,75,76,77,78,79,1003,1004,1016);""")
+                FROM imported_data;""")
     conn.commit()
     c.close()
 
