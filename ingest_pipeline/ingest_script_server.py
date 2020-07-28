@@ -38,28 +38,29 @@ conn.commit()
 c.close()
 # %% drop other tables
 # Keep commented out unless we are re-ingesting everything.
-#gsta.drop_table('uid_info', conn)
-#gsta.drop_table('imported_data', conn)
-#gsta.drop_table('uid_positions', conn)
-#gsta.drop_table('uid_trips', conn)
+# gsta.drop_table('uid_info', conn)
+# gsta.drop_table('imported_data', conn)
+# gsta.drop_table('uid_positions', conn)
+# gsta.drop_table('uid_trips', conn)
 # %% set up proc and error log
-current_folder = os.getcwd()
+current_folder = '~/AIS_project'
 if not os.path.exists(current_folder + '/ingest_script_processing/logs'):
     os.makedirs(current_folder + '/ingest_script_processing/logs')
 
 
 #%%
-folder = current_folder + '/ingest_script_processing/logs'
+ingest_folder = current_folder + '/ingest_script_processing'
+log_folder = current_folder + '/ingest_script_processing/logs'
 
 first_tick = datetime.datetime.now()
 # proc log
-log_name = folder + '/proc_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
+log_name = log_folder + '/proc_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
 log = open(log_name, 'a+')
 log.write('Starting overall processing at: {} \n'.format(first_tick.strftime("%Y_%m_%d_%H%M")))
 log.close()
 print('Starting processing at: {}'.format(first_tick.strftime("%Y_%m_%d_%H%M")))
 # error log
-error_log = folder + '/error_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
+error_log = log_folder + '/error_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
 log = open(error_log, 'a+')
 log.write('Starting overall processing at: {} \n'.format(first_tick.strftime("%Y_%m_%d_%H%M")))
 log.close()
@@ -167,7 +168,7 @@ for month in range(1, 13):
         # since the files unzip to different subfolders, we have to use the blunt glob.glob approach
         # to find the new csv.  Therefore, we are going to nuke any csvs in the directory or any subdirectories
         print('Removing any .csv files in the target folder.')
-        for file in (glob.glob((folder + '/**/*.csv'), recursive=True)):
+        for file in (glob.glob((ingest_folder + '/**/*.csv'), recursive=True)):
             os.remove(file)
             print('removed file', file[-22:])
         log = open(log_name, 'a+')
@@ -175,8 +176,8 @@ for month in range(1, 13):
         log.close()
         try:
             file_name = f'{str(year)}_{str(month).zfill(2)}_{str(zone).zfill(2)}'
-            download_path = f'{folder}/{file_name}.zip'
-            unzip_path = f'{folder}/{str(year)}'
+            download_path = f'{ingest_folder}/{file_name}.zip'
+            unzip_path = f'{ingest_folder}/{str(year)}'
             url_path = f'https://coast.noaa.gov/htdata/CMSP/AISDataHandler/{str(year)}/'
             url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
             link = url_path + url_file + '.zip'
@@ -187,8 +188,8 @@ for month in range(1, 13):
             print('Starting to parse raw data...')
             # because the file unzips to different named folders, we have to be a bit creative.
             # if there is only one csv file in the root folder, everything is working.
-            if len((glob.glob((folder + '/**/*.csv'), recursive=True))) == 1:
-                file = glob.glob((folder + '/**/*.csv'), recursive=True)[0]
+            if len((glob.glob((ingest_folder + '/**/*.csv'), recursive=True))) == 1:
+                file = glob.glob((ingest_folder + '/**/*.csv'), recursive=True)[0]
                 parse_SQL(file)
                 print(f'Parsing complete for {file_name}.')
                 # delete the csv file
@@ -199,7 +200,7 @@ for month in range(1, 13):
                 log.close()
             else:
                 print('More than one file expected.  Removing all of them.')
-                for file in (glob.glob((folder + '/**/*.csv'), recursive=True)):
+                for file in (glob.glob((ingest_folder + '/**/*.csv'), recursive=True)):
                     os.remove(file)
                 print('Too many csv files.  File name added to the error list.')
                 log = open(log_name, 'a+')
@@ -208,7 +209,7 @@ for month in range(1, 13):
                 log = open(error_log, 'a+')
                 log.write('{} \n'.format(file_name[-22:]))
                 log.close()
-        except:
+        except Exception:
             print('Error.  Logging in proc and error log.')
             log = open(log_name, 'a+')
             log.write(f'Error month/zone {month}/{zone}. \n')
