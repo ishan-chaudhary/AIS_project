@@ -96,7 +96,7 @@ conn.commit()
 c.close()
 
 # %% create WPI table funtion
-wpi_csv_path = '/Users/patrickmaus/Documents/projects/AIS_project/WPI_data/wpi_clean.csv'
+wpi_csv_path = current_folder + '/WPI_data/wpi_clean.csv'
 conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 
 
