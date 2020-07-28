@@ -106,32 +106,28 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760
 def parse_SQL(file_name, conn=conn):
     c = conn.cursor()
     # need to clear out imported data first.
-    c.execute("""DROP TABLE imported_data;""")
+    c.execute("""DROP TABLE IF EXISTS imported_data;""")
     conn.commit()
     print('Copying data to temp table...')
     generator = pd.read_csv(file_name, chunksize=1000000)
     for df in generator:
-        df.to_sql(name='imported_data', con=loc_engine, if_exists='append',
-                        method='multi', index=False)
+        df = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'VesselType']]
+        df.columns = ['uid', 'time', 'lat', 'lon', 'ship_type']
+        df.to_sql(name='imported_data', con=loc_engine, if_exists='append',method='multi', index=False)
     print('Copying complete!')
     # this will only insert positions from cargo ship types
-    c.execute(f"""INSERT INTO uid_positions (uid, time, geom, lat, lon)
-                SELECT uid, 
-                time, 
-                ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
-                lat, 
-                lon 
-                FROM imported_data
-                where ship_type IN (
-                '70','71','72','73','74','75','76','77','78','79',
-                '1003','1004','1016');""")
-    conn.commit()
-    c.execute("""INSERT INTO uid_info (uid, ship_name, ship_type)
-                SELECT DISTINCT uid, ship_name, ship_type from uid_positions
-                where ship_type IN ('70','71','72','73','74','75','76','77',
-                '78','79','1003','1004','1016');""")
-    conn.commit()
-    c.close()
+c.execute(f"""INSERT INTO uid_positions (uid, time, geom, lat, lon)
+            SELECT uid, 
+            time, 
+            ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
+            lat, 
+            lon 
+            FROM imported_data
+            where ship_type IN (
+            '70','71','72','73','74','75','76','77','78','79',
+            '1003','1004','1016');""")
+conn.commit()
+c.close()
 
 
 # %% Populate ship_trips table from ship position table

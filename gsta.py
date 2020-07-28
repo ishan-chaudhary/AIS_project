@@ -59,10 +59,11 @@ def connect_psycopg2(params):
 def connect_engine(params):
     print('Creating Engine...')
     try:
-        engine = create_engine('postgresql://{}@{}:{}/{}'.format(params['user'],
-                                                                 params['host'],
-                                                                 params['port'],
-                                                                 params['database']))
+        engine = (create_engine('postgresql://{}:{}@{}:{}/{}'.format(params['user'],
+                                                                     params['password'],
+                                                                     params['host'],
+                                                                     params['port'],
+                                                                     params['database'])))
         print('Engine created for', params['database'])
         return engine
 
