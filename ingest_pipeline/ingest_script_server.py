@@ -55,8 +55,13 @@ log.close()
 
 # Create "uid_position" table in the  database.
 c = conn.cursor()
-c.execute(f"""CREATE TABLE IF NOT EXISTS uid_positions
-(id serial, uid text, time timestamp, geom geometry, lat numeric, lon numeric);""")
+c.execute("""CREATE TABLE IF NOT EXISTS uid_positions
+(id serial, 
+uid text, 
+time timestamp, 
+geom geometry, 
+lat numeric, 
+lon numeric);""")
 conn.commit()
 c.close()
 
@@ -95,18 +100,18 @@ def parse_SQL(file_name, conn=conn):
         df.to_sql(name='imported_data', con=loc_engine, if_exists='append', method='multi', index=False)
     print('Copying complete!')
     # this will only insert positions from cargo ship types
-c.execute(f"""INSERT INTO uid_positions (uid, time, geom, lat, lon)
-            SELECT uid, 
-            time, 
-            ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
-            lat, 
-            lon 
-            FROM imported_data
-            where ship_type IN (
-            '70','71','72','73','74','75','76','77','78','79',
-            '1003','1004','1016');""")
-conn.commit()
-c.close()
+    c.execute("""INSERT INTO uid_positions (uid, time, geom, lat, lon)
+                SELECT uid, 
+                time, 
+                ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
+                lat, 
+                lon 
+                FROM imported_data
+                where ship_type IN (
+                '70','71','72','73','74','75','76','77','78','79',
+                '1003','1004','1016');""")
+    conn.commit()
+    c.close()
 
 
 # %% Populate ship_trips table from ship position table
@@ -229,22 +234,3 @@ conn.commit()
 #             ON uid_positions USING GIST (geom);""")
 # conn.commit()
 conn.close()
-
-#%%
-month = 6
-zone = 19
-year = 2017
-file_name = f'{str(year)}_{str(month).zfill(2)}_{str(zone).zfill(2)}'
-download_path = f'{folder}/{file_name}.zip'
-unzip_path = f'{folder}/{str(year)}'
-url_path = f'https://coast.noaa.gov/htdata/CMSP/AISDataHandler/{str(year)}/'
-url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
-link = url_path + url_file + '.zip'
-
-
-#%%
-tick = datetime.datetime.now()
-download_url(link, download_path, unzip_path, file_name, chunk_size=128)
-tock = datetime.datetime.now()
-lapse = tock - tick
-print(lapse)
