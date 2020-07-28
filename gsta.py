@@ -529,8 +529,8 @@ def get_edgelist(edge_table, engine, loiter_time=2):
     df_stops = pd.read_sql_query(f"""select edge.node, edge.arrival_time, 
                                  edge.depart_time, edge.time_diff,
                                  edge.destination, edge.position_count, edge.uid, 
-                                 wpi.port_name
-                                 from {edge_table} as edge, wpi as wpi
+                                 sites.port_name
+                                 from {edge_table} as edge, sites as sites
                                  where edge.node=sites.site_id and
                                  edge.node > 0 and
                                  time_diff > '{str(loiter_time)} hours';""", engine)

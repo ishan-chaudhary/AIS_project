@@ -209,7 +209,7 @@ year = 2017
 
 # iterate through each month and each zone.  get the file and then parse them.
 # need to add a check that writes each file and counts to a table for tracking iterations
-for month in range(6, 13):
+for month in range(1, 13):
     for zone in [9, 10, 11, 14, 15, 16, 17, 18, 19, 20]:
         tick = datetime.datetime.now()
         # clear out any csvs first that are in the directory.

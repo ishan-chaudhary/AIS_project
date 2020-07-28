@@ -14,8 +14,8 @@ import gsta_config
 from importlib import reload
 reload(gsta)
 #%%
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
+conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 #%% get edgelist from database
 df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=2)
 # df_edgelist.to_csv('edgelist.csv')
@@ -47,7 +47,7 @@ print(sample_source)
 gsta.plot_from_source(sample_source, df_edgelist_weighted)
 
 # %% Build report
-loiter_time_hrs = 2
+loiter_time_hrs = 8
 df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=loiter_time_hrs)
 df_edgelist_weighted = gsta.get_weighted_edgelist(df_edgelist=df_edgelist)
 G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
@@ -70,9 +70,31 @@ df_report = df_report.astype({'Degree':'float', 'In-Degree':'float', 'Out-Degree
 print(df_report)
 df_report.round(3).to_csv(f'network_report_{loiter_time_hrs}_hour_loiter.csv', index=False)
 
-#%%
-df_report_sorted = df_report.sort_values('Closeness Centrality', ascending=False)
+#%% cut out csv
+df_edgelist_weighted.to_csv('ais_edges_8_hours.csv')
 
+#%%
+df_report_sorted = df_report.sort_values('Degree', ascending=False)
+
+#%%
+df_report.hist()
+plt.show()
+
+df_report.boxplot(['Degree', 'In-Degree', 'Out-Degree', 'Centrality',
+                  'Betweenness'])
+plt.show()
+
+#%%
+
+# plot degree distribution in log log
+degree_freq = nx.degree_histogram(G)
+degrees = range(len(degree_freq))
+plt.figure()
+plt.loglog(degrees, degree_freq,'go-')
+plt.xlabel('Degree')
+plt.ylabel('Frequency')
+plt.title('LogLog Plot of Degree Distribution')
+plt.show()
 # %% Plot the whole network.  Doesnt work well in networkx, recommend usign gephi
 plt.figure(figsize=(10, 10))
 G = nx.from_pandas_edgelist(df_edgelist_weighted, source='Source',
@@ -91,3 +113,6 @@ nx.draw_networkx_labels(G, pos)
 plt.axis('off')
 plt.title('Full Network Plot')
 plt.show()
+
+#%%
+sample = df_edgelist[df_edgelist['uid']=='636016432']
