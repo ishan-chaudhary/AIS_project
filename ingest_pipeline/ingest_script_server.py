@@ -52,34 +52,13 @@ log = open(error_log, 'a+')
 log.write('Starting overall processing at: {} \n'.format(first_tick.strftime("%Y_%m_%d_%H%M")))
 log.close()
 
-# Create "ship_info" table in the database.
-c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS uid_info
-(
-    uid text,
-    ship_name text,
-    ship_type text
-);""")
-conn.commit()
-
-# Create index on uid
-c.execute("""CREATE INDEX if not exists uid_info_uid_idx on uid_info (uid);""")
-conn.commit()
-c.close()
 
 # Create "uid_position" table in the  database.
 c = conn.cursor()
 c.execute(f"""CREATE TABLE IF NOT EXISTS uid_positions
-(   id serial,
-    uid text,
-    time timestamp,
-    geom geometry,
-    lat numeric,
-    lon numeric
-);""")
+(id serial, uid text, time timestamp, geom geometry, lat numeric, lon numeric);""")
 conn.commit()
 c.close()
-
 
 # %%
 def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760):
@@ -113,7 +92,7 @@ def parse_SQL(file_name, conn=conn):
     for df in generator:
         df = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'VesselType']]
         df.columns = ['uid', 'time', 'lat', 'lon', 'ship_type']
-        df.to_sql(name='imported_data', con=loc_engine, if_exists='append',method='multi', index=False)
+        df.to_sql(name='imported_data', con=loc_engine, if_exists='append', method='multi', index=False)
     print('Copying complete!')
     # this will only insert positions from cargo ship types
 c.execute(f"""INSERT INTO uid_positions (uid, time, geom, lat, lon)
