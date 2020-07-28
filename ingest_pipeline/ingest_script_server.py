@@ -43,7 +43,7 @@ c.close()
 # gsta.drop_table('uid_positions', conn)
 # gsta.drop_table('uid_trips', conn)
 # %% set up proc and error log
-current_folder = '~/AIS_project'
+current_folder = '/home/patrickfmaus/AIS_project'
 if not os.path.exists(current_folder + '/ingest_script_processing/logs'):
     os.makedirs(current_folder + '/ingest_script_processing/logs')
 
