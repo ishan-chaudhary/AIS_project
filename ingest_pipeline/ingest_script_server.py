@@ -24,6 +24,18 @@ import gsta_config
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 
+
+#%%
+# Create "uid_position" table in the  database.
+c = conn.cursor()
+c.execute("""CREATE TABLE IF NOT EXISTS imported_data
+(uid text, 
+time timestamp, 
+lat numeric, 
+lon numeric,
+ship_type int);""")
+conn.commit()
+c.close()
 # %% drop other tables
 # Keep commented out unless we are re-ingesting everything.
 #gsta.drop_table('uid_info', conn)
@@ -90,13 +102,14 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760
 def parse_SQL(file_name, conn=conn):
     c = conn.cursor()
     # need to clear out imported data first.
-    c.execute("""DROP TABLE IF EXISTS imported_data;""")
+    c.execute("""TRUNCATE imported_data;""")
     conn.commit()
     print('Copying data to temp table...')
-    generator = pd.read_csv(file_name, chunksize=1000000)
+    generator = pd.read_csv(file_name, chunksize=500000)
     for df in generator:
         df = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'VesselType']]
         df.columns = ['uid', 'time', 'lat', 'lon', 'ship_type']
+        df['time'] = pd.to_datetime(df['time'])
         df.to_sql(name='imported_data', con=loc_engine, if_exists='append', method='multi', index=False)
     print('Copying complete!')
     # this will only insert positions from cargo ship types
@@ -108,8 +121,7 @@ def parse_SQL(file_name, conn=conn):
                 lon 
                 FROM imported_data
                 where ship_type IN (
-                '70','71','72','73','74','75','76','77','78','79',
-                '1003','1004','1016');""")
+                70,71,72,73,74,75,76,77,78,79,1003,1004,1016);""")
     conn.commit()
     c.close()
 
