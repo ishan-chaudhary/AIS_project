@@ -90,8 +90,8 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760
         for chunk in r.iter_content(chunk_size=chunk_size):
             fd.write(chunk)
     print('File downloaded.')
-    with zipfile.ZipFile(download_path, 'r') as zip_ref:
-        zip_ref.extractall(path=unzip_path)
+with zipfile.ZipFile(file, 'r') as zip_ref:
+    zip_ref.extractall()
     print('File unzipped!')
     # delete the zipped file
     os.remove(download_path)
@@ -232,11 +232,19 @@ print('Processing Done.  Total time elapsed: ', lapse)
 conn.close()
 # %% additional functions and index building
 # this will populate the roll up table
+tick = datetime.datetime.now()
+print('Making trips table')
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-#gsta.dedupe_table('uid_info', conn=conn)
 make_trips('uid_trips', 'uid_positions', conn=conn)
+print('Trips table built.')
+tock = datetime.datetime.now()
+lapse = tock - tick
+print('Time elapsed: {} \n'.format(lapse))
 conn.close()
 # %% indices.  These can take a long time to build.
+tick = datetime.datetime.now()
+print('Adding indices to uid_positions')
+
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists position_uid_idx 
@@ -245,4 +253,8 @@ conn.commit()
 # c.execute("""CREATE INDEX if not exists position_geom_idx
 #             ON uid_positions USING GIST (geom);""")
 # conn.commit()
+print('Indices built.')
+tock = datetime.datetime.now()
+lapse = tock - tick
+print('Time elapsed: {} \n'.format(lapse))
 conn.close()

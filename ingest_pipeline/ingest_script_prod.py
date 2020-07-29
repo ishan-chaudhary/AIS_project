@@ -32,6 +32,9 @@ conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 current_folder = os.getcwd()
 if not os.path.exists(current_folder + '/ingest_script_processing/logs'):
     os.makedirs(current_folder + '/ingest_script_processing/logs')
+
+
+#%%
 folder = current_folder + '/ingest_script_processing/logs'
 
 first_tick = datetime.datetime.now()
@@ -133,7 +136,6 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760
         print('Link good for {}!'.format(file_name))
     else:
         print('Link did not return 200 status code')
-
     with open(download_path, 'wb') as fd:
         for chunk in r.iter_content(chunk_size=chunk_size):
             fd.write(chunk)
@@ -150,8 +152,9 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760
 def parse_SQL(file_name, conn=conn):
     c = conn.cursor()
     # need to clear out imported data first.
-    c.execute("""TRUNCATE TABLE imported_data;""")
+    c.execute("""DROP TABLE imported_data;""")
     conn.commit()
+
     c.execute("""COPY imported_data FROM '{}'
                 WITH (format csv, header);""".format(file_name))
     conn.commit()
@@ -219,7 +222,6 @@ for month in range(1, 13):
         for file in (glob.glob((folder + '/**/*.csv'), recursive=True)):
             os.remove(file)
             print('removed file', file[-22:])
-
         log = open(log_name, 'a+')
         log.write(f'Started month/zone {month}/{zone} at {datetime.datetime.now().strftime("%H%M")} \n')
         log.close()
@@ -231,12 +233,10 @@ for month in range(1, 13):
             url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
             link = url_path + url_file + '.zip'
             print(f'Started file {file_name[-22:]} at {tick.strftime("%H%M")}.')
-
             # use the download_url function to download the zip file, unzip it, and
             # delete the zip file
             download_url(link, download_path, unzip_path, file_name)
             print('Starting to parse raw data...')
-
             # because the file unzips to different named folders, we have to be a bit creative.
             # if there is only one csv file in the root folder, everything is working.
             if len((glob.glob((folder + '/**/*.csv'), recursive=True))) == 1:
@@ -260,7 +260,6 @@ for month in range(1, 13):
                 log = open(error_log, 'a+')
                 log.write('{} \n'.format(file_name[-22:]))
                 log.close()
-
         except:
             print('Error.  Logging in proc and error log.')
             log = open(log_name, 'a+')
@@ -269,12 +268,10 @@ for month in range(1, 13):
             log = open(error_log, 'a+')
             log.write('{} \n'.format(file_name[-22:]))
             log.close()
-
         # wrap up time keeping and logging
         tock = datetime.datetime.now()
         lapse = tock - tick
         print('Time elapsed: {} \n'.format(lapse))
-
         log = open(log_name, 'a+')
         log.write('Finished file {} at {} \n'.format(file_name[-22:], datetime.datetime.now().strftime("%H%M")))
         log.write('Time elapsed: {} \n'.format(lapse))

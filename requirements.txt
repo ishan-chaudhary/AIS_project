@@ -10,4 +10,4 @@ requests==2.23.0
 seaborn==0.10.1
 sshtunnel==0.1.5
 paramiko==2.7.1
-scipy==1.4.1
+scipy==1.4.1conda

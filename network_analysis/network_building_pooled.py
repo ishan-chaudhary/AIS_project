@@ -7,8 +7,8 @@ from multiprocessing import Pool
 import gsta
 import gsta_config
 
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 
 #%% variable delcaration
 nearest_site_table = 'nearest_site'
@@ -123,7 +123,7 @@ uid_list_completed = c.fetchall()
 c.close()
 
 # find the uids that are not in the edge table yet
-diff = lambda l1,l2: [x for x in l1 if x not in l2]
+diff = lambda l1, l2: [x for x in l1 if x not in l2]
 uid_list = diff(uid_list_potential, uid_list_completed)
 #%% iterate through the uid list and build the network edges
 first_tick = datetime.datetime.now()
@@ -131,7 +131,7 @@ print('Starting Processing at: ', first_tick.time())
 
 # execute the function with pooled workers
 if __name__ == '__main__':
-    with Pool(6) as p:
+    with Pool(35) as p:
         p.map(build_edgelist, uid_list)
 
 last_tock = datetime.datetime.now()
