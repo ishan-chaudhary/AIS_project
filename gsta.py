@@ -568,6 +568,32 @@ def get_weighted_edgelist(df_edgelist):
                             .reset_index())
     return df_edgelist_weighted
 
+def build_uid_lists(source_table, target_table, conn):
+    """A function that build a list of all unique uids in the source table that are not already
+     in the target table.  This can be used to resume processing if interrupted by only continuing
+     to process the uids required."""
+    print('Building the uid lists...')
+    # This list is all of the uids in the table of interest.  It is the
+    # total number of uids we will be iterating over.
+    c = conn.cursor()
+    c.execute(f"""SELECT DISTINCT(uid) FROM {source_table};""")
+    uid_list_potential = c.fetchall()
+    c.close()
+
+    # if we have to stop the process, we can use the uids that are already completed
+    # to build a new list of uids left to complete.  this will allow us to resume
+    # processing without repeating any uids.
+    c = conn.cursor()
+    c.execute(f"""SELECT DISTINCT(uid) FROM {target_table};""")
+    uid_list_completed = c.fetchall()
+    c.close()
+
+    # find the uids that are not in the edge table yet
+    diff = lambda l1, l2: [x for x in l1 if x not in l2]
+    uid_list = diff(uid_list_potential, uid_list_completed)
+    print('UID lists built.')
+    return uid_list
+
 
 def plot_uid(uid, df_edgelist):
     # this function will plot the path of a given uid across an edgelist df.
