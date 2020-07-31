@@ -7,6 +7,9 @@ from multiprocessing import Pool
 import gsta
 import gsta_config
 
+import importlib
+importlib.reload(gsta_config)
+
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 
@@ -33,6 +36,8 @@ def build_edgelist(uid):
                         where s.id = pos.id
                         AND pos.uid = '{uid[0]}'
                         ORDER BY TIME;""", loc_engine)
+        # any duplicates will cause problems down the line.  catch them here.
+        df.drop_duplicates(inplace=True)
         # port_check takes the dist to nearest port and if its less than dist, populates
         # port_id with the nearest port id.  If the nearest port is greater than dist,
         # port_id = 0.  0 will be used for activity "not in port"
@@ -73,9 +78,9 @@ def build_edgelist(uid):
         df_final['uid'] = uid[0]
         # write back to the database
         df_final.to_sql(name=edge_table, con=loc_engine, if_exists='append',
-                        method='multi', index=False )
+                        method='multi', index=False)
 
-        uid
+
 
         print(f'Completed uid {uid[0]}.')
 
@@ -105,7 +110,7 @@ c.close()
 
 
 #%% get uid lists
-
+print('Building the uid lists...')
 # This list is all of the uids in the table of interest.  It is the
 # total number of uids we will be iterating over.
 c = conn.cursor()
@@ -125,16 +130,17 @@ c.close()
 # find the uids that are not in the edge table yet
 diff = lambda l1, l2: [x for x in l1 if x not in l2]
 uid_list = diff(uid_list_potential, uid_list_completed)
+
+print('UID lists built.')
 #%% iterate through the uid list and build the network edges
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 
 # execute the function with pooled workers
 if __name__ == '__main__':
-    with Pool(35) as p:
+    with Pool(38) as p:
         p.map(build_edgelist, uid_list)
 
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
-
