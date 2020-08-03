@@ -18,6 +18,7 @@ from sklearn.neighbors import BallTree
 from multiprocessing import Pool
 
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn.close()
 engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 
 
@@ -51,11 +52,14 @@ def get_nn(uid, tree=ball_tree):
     # define the sql statement
     sql_insert = "INSERT INTO nearest_site (nearest_port_dist_km, nearest_port_id, id) " \
                  "VALUES(%s, %s, %s);"
+
     # write to db
-    c = conn.cursor()
+    loc_conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+    c = loc_conn.cursor()
     c.executemany(sql_insert, (data.tolist()))
-    conn.commit()
+    loc_conn.commit()
     c.close()
+    loc_conn.close()
     print(f'UID {uid[0]} complete in:', datetime.now() - iteration_start)
 
 
@@ -84,8 +88,8 @@ c.close()
 conn.close()
 #%%
 # establish the connection
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-first_tick = datetime.datetime.now()
+
+first_tick = datetime.now()
 print('Starting Processing at: ', first_tick.time())
 
 # execute the function with pooled workers
@@ -93,7 +97,7 @@ if __name__ == '__main__':
     with Pool(38) as p:
         p.map(get_nn, uid_list)
 
-last_tock = datetime.datetime.now()
+last_tock = datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 conn.close()
