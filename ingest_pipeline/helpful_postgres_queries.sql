@@ -13,7 +13,7 @@ SELECT *, pg_size_pretty(total_bytes) AS total
           FROM pg_class c
           LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
           WHERE relkind = 'r'
-	      ORDER BY total_bytes DESC
+	      ORDER BY total_bytes DESC limit 10
   ) a
 ) a;
 

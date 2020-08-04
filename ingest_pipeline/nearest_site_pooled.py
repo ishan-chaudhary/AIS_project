@@ -18,8 +18,7 @@ from sklearn.neighbors import BallTree
 from multiprocessing import Pool
 
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-conn.close()
-engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+engine = gsta.connect_engine(gsta_config.loc_cargo_params)
 
 
 #%% get the sits as a df from the database
@@ -30,6 +29,8 @@ candidates = np.radians(sites.loc[:, ['lat', 'lon']].values)
 ball_tree = BallTree(candidates, leaf_size=40, metric='haversine')
 
 def get_nn(uid, tree=ball_tree):
+
+
     print('Working on uid:', uid[0])
     iteration_start = datetime.now()
     read_sql = f"""SELECT id, lat, lon

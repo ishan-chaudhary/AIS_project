@@ -30,12 +30,12 @@ conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 #gsta.drop_table('uid_trips', conn)
 # %% set up proc and error log
 current_folder = os.getcwd()
-if not os.path.exists(current_folder + '/ingest_script_processing/logs'):
-    os.makedirs(current_folder + '/ingest_script_processing/logs')
+if not os.path.exists(current_folder + '/script_processing/logs'):
+    os.makedirs(current_folder + '/script_processing/logs')
 
 
 #%%
-folder = current_folder + '/ingest_script_processing/logs'
+folder = current_folder + '/script_processing/logs'
 
 first_tick = datetime.datetime.now()
 # proc log
