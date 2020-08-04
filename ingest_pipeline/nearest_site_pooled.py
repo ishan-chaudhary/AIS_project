@@ -17,13 +17,10 @@ from sklearn.neighbors import BallTree
 
 from multiprocessing import Pool
 
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-conn.close()
 engine = gsta.connect_engine(gsta_config.colone_cargo_params)
-
-
 #%% get the sits as a df from the database
 sites = gsta.get_sites(engine)
+engine.dispose()
 
 # build the BallTree using the ports as the candidates
 candidates = np.radians(sites.loc[:, ['lat', 'lon']].values)
@@ -32,10 +29,14 @@ ball_tree = BallTree(candidates, leaf_size=40, metric='haversine')
 def get_nn(uid, tree=ball_tree):
     print('Working on uid:', uid[0])
     iteration_start = datetime.now()
+    
+
+    loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
     read_sql = f"""SELECT id, lat, lon
                 FROM uid_positions
                 where uid= '{uid[0]}';"""
-    df = pd.read_sql(sql=read_sql, con=engine)
+    df = pd.read_sql(sql=read_sql, con=loc_engine)
+    loc_engine.dispose()
     # Now we are going to use sklearn's BallTree to find the nearest neighbor of
     # each position for the nearest port.  The resulting port_id and dist will be
     # pushed back to the db with the id, uid, and time to be used in the network
