@@ -8,7 +8,7 @@ import gsta
 import gsta_config
 
 import importlib
-importlib.reload(gsta_config)
+importlib.reload(gsta)
 
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
@@ -79,9 +79,6 @@ def build_edgelist(uid):
         # write back to the database
         df_final.to_sql(name=edge_table, con=loc_engine, if_exists='append',
                         method='multi', index=False)
-
-
-
         print(f'Completed uid {uid[0]}.')
 
 #%% Create the edge table
@@ -110,28 +107,9 @@ c.close()
 
 
 #%% get uid lists
-print('Building the uid lists...')
-# This list is all of the uids in the table of interest.  It is the
-# total number of uids we will be iterating over.
-c = conn.cursor()
-c.execute("""SELECT DISTINCT(uid) FROM uid_positions;""")
-uid_list_potential = c.fetchall()
-c.close()
+# uid trips and uid_positions have the same unique UIDs.  uid trips is much faster.
+uid_list = gsta.build_uid_lists('uid_trips', edge_table, conn)
 
-# if we have to stop the process, we can use the uids that are already completed
-# to build a new list of uids left to complete.  this will allow us to resume
-# processing without repeating any uids.
-c = conn.cursor()
-c.execute("""SELECT DISTINCT(uid) FROM {};"""
-          .format(edge_table))
-uid_list_completed = c.fetchall()
-c.close()
-
-# find the uids that are not in the edge table yet
-diff = lambda l1, l2: [x for x in l1 if x not in l2]
-uid_list = diff(uid_list_potential, uid_list_completed)
-
-print('UID lists built.')
 #%% iterate through the uid list and build the network edges
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
