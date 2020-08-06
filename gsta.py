@@ -5,7 +5,7 @@ Created on Sat Mar 14 09:44:23 2020
 
 @author: patrickmaus
 """
-# db connections
+
 import numpy as np
 import psycopg2
 from sqlalchemy import create_engine
@@ -22,7 +22,7 @@ import random
 from collections import defaultdict
 from nltk import ngrams
 
-# n etwork tools
+# network tools
 import networkx as nx
 
 # sklearn tools
@@ -34,41 +34,42 @@ from psycopg2.extensions import register_adapter, AsIs
 psycopg2.extensions.register_adapter(np.int64, psycopg2._psycopg.AsIs)
 
 # %% Database connection functions
-def connect_psycopg2(params):
-    """ Connect to the PostgreSQL database server """
-    conn = None
+def connect_psycopg2(params, print_verbose=True):
+    """ Connect to the PostgreSQL database server using a dict of params. """
     try:
         # connect to the PostgreSQL server
-        print('Connecting to the PostgreSQL database...')
+        if print_verbose is True:
+            print('Connecting to the PostgreSQL database...')
         conn = psycopg2.connect(**params)
         c = conn.cursor()
         # Execute a statement
-        print('PostgreSQL database version:')
+        if print_verbose is True:
+            print('PostgreSQL database version:')
         c.execute('SELECT version()')
         db_version = c.fetchone()
-        print(db_version)
+        if print_verbose is True:
+            print(db_version)
         # close the communication with the PostgreSQL
         c.close()
-        print('Connection created for', params['database'])
+        if print_verbose is True:
+            print('Connection created for', params['database'])
         return conn
-
-    except (Exception) as error:
+    except Exception as error:
         print(error)
+        print('Conn Creation failed.')
 
 
-def connect_engine(params):
+def connect_engine(params, print_verbose=True):
+    """ Create SQLAlchemy engine from dict of parameters"""
     print('Creating Engine...')
     try:
-        engine = (create_engine('postgresql://{}:{}@{}:{}/{}'.format(params['user'],
-                                                                     params['password'],
-                                                                     params['host'],
-                                                                     params['port'],
-                                                                     params['database'])))
-        print('Engine created for', params['database'])
+        engine = (create_engine(f"postgresql://{params['user']}:{params['password']}"
+                                f"@{params['host']}:{params['port']}/{params['database']}"))
+        if print_verbose is True:
+            print('Engine created for', params['database'])
         return engine
-
-
-    except (Exception) as error:
+    except Exception as error:
+        print(error)
         print('Engine Creation failed.')
 
 
