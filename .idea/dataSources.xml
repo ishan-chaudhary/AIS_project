@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="Pats PostGres" uuid="ceb5ab52-aa7b-4e7a-8ff1-bd81d9f57764">
+    <data-source source="LOCAL" name="ais_cargo@localhost" uuid="05bb999e-b202-41b3-826b-5fffd7e57f68">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
-      <jdbc-url>jdbc:postgresql://localhost:5432/postgres</jdbc-url>
+      <jdbc-url>jdbc:postgresql://localhost:5432/ais_cargo</jdbc-url>
+    </data-source>
+    <data-source source="LOCAL" name="ColOne_AIS_Cargo" uuid="98075c32-ae40-4e4c-8294-b0467a064167">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://localhost:5433/ais_cargo</jdbc-url>
     </data-source>
   </component>
 </project>

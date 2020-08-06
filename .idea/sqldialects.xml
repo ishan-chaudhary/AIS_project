@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlResolveMappings">
+    <file url="file://$PROJECT_DIR$/ingest_pipeline/archives/knn_nearest_port.py" scope="{&quot;node&quot;:{  &quot;@negative&quot;:&quot;1&quot;,  &quot;group&quot;:{   &quot;@kind&quot;:&quot;root&quot;,   &quot;node&quot;:{    &quot;name&quot;:{     &quot;@qname&quot;:&quot;ceb5ab52-aa7b-4e7a-8ff1-bd81d9f57764&quot;    },    &quot;group&quot;:{     &quot;@kind&quot;:&quot;database&quot;,     &quot;node&quot;:{      &quot;name&quot;:{       &quot;@qname&quot;:&quot;ais_cargo&quot;      },      &quot;group&quot;:{       &quot;@kind&quot;:&quot;schema&quot;,       &quot;node&quot;:{        &quot;name&quot;:{         &quot;@qname&quot;:&quot;public&quot;        }       }      }     }    }   }  } }}" />
+    <file url="file://$PROJECT_DIR$/ingest_pipeline/ingest_script_prod.py" scope="{&quot;node&quot;:{  &quot;@negative&quot;:&quot;1&quot;,  &quot;group&quot;:{   &quot;@kind&quot;:&quot;root&quot;,   &quot;node&quot;:{    &quot;name&quot;:{     &quot;@qname&quot;:&quot;ceb5ab52-aa7b-4e7a-8ff1-bd81d9f57764&quot;    },    &quot;group&quot;:{     &quot;@kind&quot;:&quot;database&quot;,     &quot;node&quot;:{      &quot;name&quot;:{       &quot;@qname&quot;:&quot;ais_cargo&quot;      },      &quot;group&quot;:{       &quot;@kind&quot;:&quot;schema&quot;,       &quot;node&quot;:{        &quot;name&quot;:{         &quot;@qname&quot;:&quot;public&quot;        }       }      }     }    }   }  } }}" />
+  </component>
+</project>

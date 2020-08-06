@@ -14,7 +14,6 @@ loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
 
 # df_edgelist is already sorted by time using the gsta.get_edgelist function
 df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=2)
-df_edgelist.to_csv('full_edgelist_for_nlp.csv')
 
 
 # %% function definition
