@@ -17,7 +17,8 @@ reload(gsta)
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 # %% get edgelist from database
-df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist_3km', engine=loc_engine, loiter_time=6)
+
+df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist_3km', engine=loc_engine, loiter_time=2)
 print(f"{len(df_edgelist)} edges and {len(df_edgelist['Source'].unique())} nodes." )
 
 # %% This produces a df that is the summarized edge list with weights

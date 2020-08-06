@@ -52,7 +52,7 @@ def connect_psycopg2(params):
         print('Connection created for', params['database'])
         return conn
 
-    except (Exception, psycopg2.DatabaseError) as error:
+    except (Exception) as error:
         print(error)
 
 
@@ -67,7 +67,8 @@ def connect_engine(params):
         print('Engine created for', params['database'])
         return engine
 
-    except:
+
+    except (Exception) as error:
         print('Engine Creation failed.')
 
 
@@ -550,9 +551,8 @@ def get_edgelist(edge_table, engine, loiter_time=2):
     # The resulting df is the full edge list
     df_list = (df_list[df_list['uid'] == df_list['target_uid']]
                .drop('target_uid', axis=1))
-    # this filters ou self-loops
-    df_edgelist_full = df_list[df_list['Source_id'] != df_list['Target_id']]
-    return df_edgelist_full
+    print(f"{len(df_list)} edges and {len(df_list['Source'].unique())} source nodes.")
+    return df_list
 
 
 def get_weighted_edgelist(df_edgelist):

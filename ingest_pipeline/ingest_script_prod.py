@@ -11,6 +11,7 @@ import datetime
 import requests
 import zipfile
 import os
+import pandas as pd
 
 # folder management
 import glob
@@ -20,14 +21,26 @@ import gsta
 import gsta_config
 
 # %%
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 
+
+#%%
+# Create "uid_position" table in the  database.
+c = conn.cursor()
+c.execute("""CREATE TABLE IF NOT EXISTS imported_data
+(uid text, 
+time timestamp, 
+lat numeric, 
+lon numeric);""")
+conn.commit()
+c.close()
 # %% drop other tables
 # Keep commented out unless we are re-ingesting everything.
-#gsta.drop_table('uid_info', conn)
-#gsta.drop_table('imported_data', conn)
-#gsta.drop_table('uid_positions', conn)
-#gsta.drop_table('uid_trips', conn)
+# gsta.drop_table('uid_info', conn)
+# gsta.drop_table('imported_data', conn)
+# gsta.drop_table('uid_positions', conn)
+# gsta.drop_table('uid_trips', conn)
 # %% set up proc and error log
 current_folder = os.getcwd()
 if not os.path.exists(current_folder + '/script_processing/logs'):
@@ -35,17 +48,18 @@ if not os.path.exists(current_folder + '/script_processing/logs'):
 
 
 #%%
-folder = current_folder + '/script_processing/logs'
+ingest_folder = current_folder + '/script_processing'
+log_folder = current_folder + '/script_processing/logs'
 
 first_tick = datetime.datetime.now()
 # proc log
-log_name = folder + '/proc_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
+log_name = log_folder + '/proc_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
 log = open(log_name, 'a+')
 log.write('Starting overall processing at: {} \n'.format(first_tick.strftime("%Y_%m_%d_%H%M")))
 log.close()
 print('Starting processing at: {}'.format(first_tick.strftime("%Y_%m_%d_%H%M")))
 # error log
-error_log = folder + '/error_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
+error_log = log_folder + '/error_log_{}.txt'.format(first_tick.strftime("%Y_%m_%d_%H%M"))
 log = open(error_log, 'a+')
 log.write('Starting overall processing at: {} \n'.format(first_tick.strftime("%Y_%m_%d_%H%M")))
 log.close()
@@ -87,14 +101,13 @@ c.close()
 
 # Create "uid_position" table in the  database.
 c = conn.cursor()
-c.execute(f"""CREATE TABLE IF NOT EXISTS uid_positions
-(   id serial,
-    uid text,
-    time timestamp,
-    geom geometry,
-    lat numeric,
-    lon numeric
-);""")
+c.execute("""CREATE TABLE IF NOT EXISTS uid_positions
+(id serial, 
+uid text, 
+time timestamp, 
+geom geometry, 
+lat numeric, 
+lon numeric);""")
 conn.commit()
 c.close()
 
@@ -152,7 +165,7 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760
 def parse_SQL(file_name, conn=conn):
     c = conn.cursor()
     # need to clear out imported data first.
-    c.execute("""DROP TABLE imported_data;""")
+    c.execute("""TRUNCATE imported_data;""")
     conn.commit()
 
     c.execute("""COPY imported_data FROM '{}'
@@ -170,11 +183,6 @@ def parse_SQL(file_name, conn=conn):
                 '70','71','72','73','74','75','76','77','78','79',
                 '1003','1004','1016');""")
     conn.commit()
-    # c.execute("""INSERT INTO uid_info (uid, ship_name, ship_type)
-    #             SELECT DISTINCT uid, ship_name, ship_type from uid_positions
-    #             where ship_type IN ('70','71','72','73','74','75','76','77',
-    #             '78','79','1003','1004','1016');""")
-    # conn.commit()
     c.close()
 
 
@@ -219,7 +227,7 @@ for month in range(1, 13):
         # since the files unzip to different subfolders, we have to use the blunt glob.glob approach
         # to find the new csv.  Therefore, we are going to nuke any csvs in the directory or any subdirectories
         print('Removing any .csv files in the target folder.')
-        for file in (glob.glob((folder + '/**/*.csv'), recursive=True)):
+        for file in (glob.glob((ingest_folder + '/**/*.csv'), recursive=True)):
             os.remove(file)
             print('removed file', file[-22:])
         log = open(log_name, 'a+')
@@ -227,8 +235,8 @@ for month in range(1, 13):
         log.close()
         try:
             file_name = f'{str(year)}_{str(month).zfill(2)}_{str(zone).zfill(2)}'
-            download_path = f'{folder}/{file_name}.zip'
-            unzip_path = f'{folder}/{str(year)}'
+            download_path = f'{ingest_folder}/{file_name}.zip'
+            unzip_path = f'{ingest_folder}/{str(year)}'
             url_path = f'https://coast.noaa.gov/htdata/CMSP/AISDataHandler/{str(year)}/'
             url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
             link = url_path + url_file + '.zip'
@@ -239,8 +247,8 @@ for month in range(1, 13):
             print('Starting to parse raw data...')
             # because the file unzips to different named folders, we have to be a bit creative.
             # if there is only one csv file in the root folder, everything is working.
-            if len((glob.glob((folder + '/**/*.csv'), recursive=True))) == 1:
-                file = glob.glob((folder + '/**/*.csv'), recursive=True)[0]
+            if len((glob.glob((ingest_folder + '/**/*.csv'), recursive=True))) == 1:
+                file = glob.glob((ingest_folder + '/**/*.csv'), recursive=True)[0]
                 parse_SQL(file)
                 print(f'Parsing complete for {file_name}.')
                 # delete the csv file
@@ -251,7 +259,7 @@ for month in range(1, 13):
                 log.close()
             else:
                 print('More than one file expected.  Removing all of them.')
-                for file in (glob.glob((folder + '/**/*.csv'), recursive=True)):
+                for file in (glob.glob((ingest_folder + '/**/*.csv'), recursive=True)):
                     os.remove(file)
                 print('Too many csv files.  File name added to the error list.')
                 log = open(log_name, 'a+')
@@ -260,7 +268,7 @@ for month in range(1, 13):
                 log = open(error_log, 'a+')
                 log.write('{} \n'.format(file_name[-22:]))
                 log.close()
-        except:
+        except Exception:
             print('Error.  Logging in proc and error log.')
             log = open(log_name, 'a+')
             log.write(f'Error month/zone {month}/{zone}. \n')
@@ -284,12 +292,20 @@ print('Processing Done.  Total time elapsed: ', lapse)
 conn.close()
 # %% additional functions and index building
 # this will populate the roll up table
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-#gsta.dedupe_table('uid_info', conn=conn)
+tick = datetime.datetime.now()
+print('Making trips table')
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 make_trips('uid_trips', 'uid_positions', conn=conn)
+print('Trips table built.')
+tock = datetime.datetime.now()
+lapse = tock - tick
+print('Time elapsed: {} \n'.format(lapse))
 conn.close()
 # %% indices.  These can take a long time to build.
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+tick = datetime.datetime.now()
+print('Adding indices to uid_positions')
+
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists position_uid_idx 
             on uid_positions (uid);""")
@@ -297,23 +313,8 @@ conn.commit()
 # c.execute("""CREATE INDEX if not exists position_geom_idx
 #             ON uid_positions USING GIST (geom);""")
 # conn.commit()
-conn.close()
-
-#%%
-month = 6
-zone = 19
-year = 2017
-file_name = f'{str(year)}_{str(month).zfill(2)}_{str(zone).zfill(2)}'
-download_path = f'{folder}/{file_name}.zip'
-unzip_path = f'{folder}/{str(year)}'
-url_path = f'https://coast.noaa.gov/htdata/CMSP/AISDataHandler/{str(year)}/'
-url_file = f'AIS_{str(year)}_{str(month).zfill(2)}_Zone{str(zone).zfill(2)}'
-link = url_path + url_file + '.zip'
-
-
-#%%
-tick = datetime.datetime.now()
-download_url(link, download_path, unzip_path, file_name, chunk_size=128)
+print('Indices built.')
 tock = datetime.datetime.now()
 lapse = tock - tick
-print(lapse)
+print('Time elapsed: {} \n'.format(lapse))
+conn.close()

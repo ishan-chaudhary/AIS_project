@@ -79,3 +79,4 @@ where ship_ports.nearest_port_id=wpi.index_no
 and ship_ports.nearest_port_dist_km < 5
 group by (ship_ports.nearest_port_id, wpi.port_name, wpi.geom)
 order by count
+

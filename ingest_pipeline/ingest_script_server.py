@@ -77,6 +77,35 @@ lon numeric);""")
 conn.commit()
 c.close()
 
+# %% create WPI table funtion
+wpi_csv_path = current_folder + '/WPI_data/wpi_clean.csv'
+conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+
+
+def make_sites(conn, file=wpi_csv_path):
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS sites (
+                    site_id 	int,
+                    region_no	int,
+                    port_name	text,
+                    country		text,
+                    latitude	numeric,
+                    longitude	numeric,
+                    geog		geography,
+                    geom		geometry);""")
+    c.execute("""CREATE INDEX if not exists sites_geom_idx
+              ON sites
+              USING GIST (geom);""")
+    conn.commit()
+    c.execute("""COPY sites FROM '{}'
+        WITH (format csv, header);""".format(file))
+    conn.commit()
+    c.close()
+    print('Sites created')
+
+make_sites(conn=conn)
+
+
 # %%
 def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760):
     # chunk size is 10 mb
@@ -90,8 +119,8 @@ def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760
         for chunk in r.iter_content(chunk_size=chunk_size):
             fd.write(chunk)
     print('File downloaded.')
-with zipfile.ZipFile(file, 'r') as zip_ref:
-    zip_ref.extractall()
+    with zipfile.ZipFile(download_path, 'r') as zip_ref:
+        zip_ref.extractall(path=unzip_path)
     print('File unzipped!')
     # delete the zipped file
     os.remove(download_path)
