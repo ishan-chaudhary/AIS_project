@@ -13,38 +13,37 @@ import gsta_config
 from importlib import reload
 
 reload(gsta)
-
-# %% Create "clustering_results" table in the database.
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS clustering_results 
-        AS (SELECT id from uid_positions);""")
-conn.commit()
-c.close()
-print('clustering_results table exists.')
-
-c = conn.cursor()
-c.execute("""CREATE INDEX if not exists clustering_results_id_idx 
-            on clustering_results (id);""")
-conn.commit()
-print('Index on id in clustering_results exists.')
-# %%
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-# get the uid list from the uid_trips table
-c = conn.cursor()
-c.execute(f"""SELECT DISTINCT(uid) FROM uid_trips;""")
-uid_list = c.fetchall()
-print(f'{str(len(uid_list))} total uids returned.')
-c.close()
-
+#%%
 eps_km = 2
 kms_per_radian = 6371.0088
 eps = eps_km / kms_per_radian
 min_samples = 250
 method = 'dbscan'
 params_name = f'{method}_{eps_km}_{min_samples}'
+print(f'Starting processing for {params_name}...')
 
+# %% Create needed accessory tables and ensure they are clean.  also get uid list
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 c = conn.cursor()
+
+#Create "clustering_results" table in the database.
+c.execute("""CREATE TABLE IF NOT EXISTS clustering_results 
+        AS (SELECT id from uid_positions);""")
+conn.commit()
+print('clustering_results table exists.')
+
+# make sure the index is created
+c.execute("""CREATE INDEX if not exists clustering_results_id_idx 
+            on clustering_results (id);""")
+conn.commit()
+print('Index on id in clustering_results exists.')
+
+# get the uid list from the uid_trips table
+c.execute(f"""SELECT DISTINCT(uid) FROM uid_trips;""")
+uid_list = c.fetchall()
+print(f'{str(len(uid_list))} total uids returned.')
+
+# make sure the method name column exists and is clear
 c.execute(f"""ALTER TABLE clustering_results DROP COLUMN IF EXISTS
             {params_name};""")
 conn.commit()
@@ -52,11 +51,17 @@ c.execute(f"""ALTER TABLE clustering_results ADD COLUMN IF NOT EXISTS
             {params_name} int;""")
 conn.commit()
 print(f'Clean column for {params_name} exists.')
-c.close()
 
+c.close()
+conn.close()
 
 # %%
 def make_uid_tracker(conn_pg):
+    """
+    This function makes a tracking table for the UIDs already processed in a script
+    :param conn_pg:
+    :return: a new table is created (or dropped and recreated) at the end of the conn
+    """
     c_pg = conn_pg.cursor()
     c_pg.execute("""DROP TABLE IF EXISTS uid_tracker""")
     conn_pg.commit()
@@ -68,18 +73,24 @@ def make_uid_tracker(conn_pg):
 
 
 def add_to_uid_tracker(uid, conn_pg):
+    """
+    This function adds a provided uid to the tracking database and returns the len of
+    uids already in the table.
+    :param uid: tuple, from the returned uid list from the db
+    :param conn_pg:
+    :return: an int the len of distinct uids in the uid_tracker table
+    """
     c_pg = conn_pg.cursor()
     # track completed uids by writing to a new table
     insert_uid_sql = """INSERT INTO uid_tracker (uid) values (%s)"""
     c_pg.execute(insert_uid_sql, uid)
     conn_pg.commit()
-
     # get total number of uids completed
-    c_pg.execute("""SELECT count(uid) from uid_tracker""")
+    c_pg.execute("""SELECT count(distinct(uid)) from uid_tracker""")
     uids_completed = (c_pg.fetchone())
     c_pg.close()
     conn_pg.close()
-    return uids_completed[0]
+    return uids_completed[0] # remember its a tuple from the db.  [0] gets the int
 
 
 # %%
@@ -136,6 +147,12 @@ def sklearn_dbscan(uid):
 
 
 def postgres_dbscan(uid):
+    """
+    A function to conduct dbscan on the server for a global eps and min_samples value.
+    Optimized for multiprocessing.
+    :param uid:
+    :return:
+    """
     print('Working on uid:', uid[0])
     iteration_start = datetime.datetime.now()
     # execute dbscan script
