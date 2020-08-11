@@ -11,7 +11,7 @@ import gsta_config
 
 import pandas as pd
 import numpy as np
-from datetime import datetime
+import datetime
 
 from sklearn.neighbors import BallTree
 
@@ -29,8 +29,6 @@ ball_tree = BallTree(candidates, leaf_size=40, metric='haversine')
 def get_nn(uid, tree=ball_tree):
     print('Working on uid:', uid[0])
     iteration_start = datetime.now()
-
-
     loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
     read_sql = f"""SELECT id, lat, lon
                 FROM uid_positions
@@ -90,7 +88,7 @@ conn.close()
 #%%
 # establish the connection
 
-first_tick = datetime.now()
+first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 
 # execute the function with pooled workers
@@ -98,7 +96,7 @@ if __name__ == '__main__':
     with Pool(38) as p:
         p.map(get_nn, uid_list)
 
-last_tock = datetime.now()
+last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 conn.close()
