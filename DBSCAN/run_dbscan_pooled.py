@@ -23,7 +23,7 @@ params_name = f'{method}_{eps_km}_{min_samples}'
 print(f'Starting processing for {params_name}...')
 
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 
 #Create "clustering_results" table in the database.
@@ -183,14 +183,14 @@ def postgres_dbscan(uid):
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 make_uid_tracker(conn)
 conn.close()
 
 # execute the function with pooled workers
 if __name__ == '__main__':
-    with Pool(38) as p:
-        p.imap(postgres_dbscan, uid_list)
+    p = Pool(38)
+    p.imap(postgres_dbscan, uid_list)
 
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
