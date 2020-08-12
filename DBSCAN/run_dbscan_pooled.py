@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from sklearn.cluster import OPTICS
 from multiprocessing import Pool
+from itertools import repeat
 
 # Geo-Spatial Temporal Analysis package
 import gsta
@@ -14,21 +15,18 @@ from importlib import reload
 
 reload(gsta)
 #%%
-eps_km = 2
-kms_per_radian = 6371.0088
-eps = eps_km / kms_per_radian
-min_samples = 250
-method = 'dbscan'
-params_name = f'{method}_{eps_km}_{min_samples}'
-print(f'Starting processing for {params_name}...')
+start_time = '2017-01-01 00:00:00'
+end_time = '2017-02-01 00:00:00'
 
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 
 #Create "clustering_results" table in the database.
-c.execute("""CREATE TABLE IF NOT EXISTS clustering_results 
-        AS (SELECT id from uid_positions);""")
+c.execute(f"""CREATE TABLE IF NOT EXISTS clustering_results 
+        AS (SELECT id from uid_positions
+        where time between '{start_time}' and '{end_time}'
+        );""")
 conn.commit()
 print('clustering_results table exists.')
 
@@ -39,18 +37,10 @@ conn.commit()
 print('Index on id in clustering_results exists.')
 
 # get the uid list from the uid_trips table
-c.execute(f"""SELECT DISTINCT(uid) FROM uid_trips;""")
+c.execute(f"""SELECT DISTINCT(uid) FROM uid_positions
+        where time between '{start_time}' and '{end_time}';""")
 uid_list = c.fetchall()
 print(f'{str(len(uid_list))} total uids returned.')
-
-# make sure the method name column exists and is clear
-c.execute(f"""ALTER TABLE clustering_results DROP COLUMN IF EXISTS
-            {params_name};""")
-conn.commit()
-c.execute(f"""ALTER TABLE clustering_results ADD COLUMN IF NOT EXISTS
-            {params_name} int;""")
-conn.commit()
-print(f'Clean column for {params_name} exists.')
 
 c.close()
 conn.close()
@@ -102,6 +92,7 @@ def sklearn_dbscan(uid):
     read_sql = f"""SELECT id, lat, lon
                 FROM uid_positions
                 WHERE uid = '{uid[0]}'
+                AND time between '{start_time}' and '{end_time}'
                 ORDER by time"""
     df = pd.read_sql_query(read_sql, con=engine)
 
@@ -146,23 +137,25 @@ def sklearn_dbscan(uid):
     print(f'Approximately {round(percentage, 3)} complete.')
 
 
-def postgres_dbscan(uid):
+def postgres_dbscan(uid, eps, min_samp):
     """
     A function to conduct dbscan on the server for a global eps and min_samples value.
     Optimized for multiprocessing.
+    :param min_samp:
+    :param eps:
     :param uid:
     :return:
     """
-    print('Working on uid:', uid[0])
     iteration_start = datetime.datetime.now()
     # execute dbscan script
     dbscan_postgres_sql = f"""
     UPDATE clustering_results as c 
     SET {params_name} = t.clust_id
-    FROM (SELECT id , ST_ClusterDBSCAN(geom, eps := {eps}, minpoints := {min_samples})
+    FROM (SELECT id , ST_ClusterDBSCAN(geom, eps := {eps}, minpoints := {min_samp})
           over () as clust_id
           FROM uid_positions
-          WHERE uid = '{uid[0]}') as t
+          WHERE uid = '{uid[0]}'
+          AND time between '{start_time}' and '{end_time}') as t
           WHERE t.id = c.id
           AND t.clust_id IS NOT NULL;"""
     conn_pg = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
@@ -182,19 +175,42 @@ def postgres_dbscan(uid):
 # %%
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
+epsilons = [.25, .5, 1, 2, 3, 4, 5]
+min_samples = [25, 50, 100, 200, 300, 400, 500]
+method = 'dbscan'
 
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
-make_uid_tracker(conn)
-conn.close()
+for eps_km in epsilons:
+    for min_samp in min_samples:
+        eps = eps_km / 6371.0088 #kms per radian
+        params_name = f"{method}_{str(eps_km).replace('.','_')}_{min_samp}"
+        print(f'Starting processing for {params_name}...')
 
-# execute the function with pooled workers
-if __name__ == '__main__':
-    p = Pool(38)
-    p.imap(postgres_dbscan, uid_list)
+        conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+        make_uid_tracker(conn)
+        c = conn.cursor()
+        # make sure the method name column exists and is clear
+        c.execute(f"""ALTER TABLE clustering_results DROP COLUMN IF EXISTS
+                    {params_name};""")
+        conn.commit()
+        c.execute(f"""ALTER TABLE clustering_results ADD COLUMN IF NOT EXISTS
+                    {params_name} int;""")
+        conn.commit()
+        c.close()
+        print(f'Clean column for {params_name} exists.')
+        conn.close()
 
-last_tock = datetime.datetime.now()
-lapse = last_tock - first_tick
-print('Processing Done.  Total time elapsed: ', lapse)
+        # execute the function with pooled workers
+        p = Pool(37)
+        p.starmap(postgres_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
+
+        last_tock = datetime.datetime.now()
+        lapse = last_tock - first_tick
+        print('Processing Done.  Total time elapsed: ', lapse)
+
+
+
+
+
 
 #
 # #%%
