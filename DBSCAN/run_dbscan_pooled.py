@@ -167,20 +167,21 @@ def postgres_dbscan(uid, eps, min_samp):
     uids_completed = add_to_uid_tracker(uid, conn_pg)
     conn_pg.close()
 
-    print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
-    percentage = (uids_completed / len(uid_list)) * 100
-    print(f'Approximately {round(percentage, 3)} complete.')
+    #print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
+    #percentage = (uids_completed / len(uid_list)) * 100
+    #print(f'Approximately {round(percentage, 3)} complete.')
 
 
 # %%
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
-epsilons = [.25, .5, 1, 2, 3, 4, 5]
+epsilons = [3, 4, 5]
 min_samples = [25, 50, 100, 200, 300, 400, 500]
 method = 'dbscan'
 
 for eps_km in epsilons:
     for min_samp in min_samples:
+        iteration_start = datetime.datetime.now()
         eps = eps_km / 6371.0088 #kms per radian
         params_name = f"{method}_{str(eps_km).replace('.','_')}_{min_samp}"
         print(f'Starting processing for {params_name}...')
@@ -200,12 +201,14 @@ for eps_km in epsilons:
         conn.close()
 
         # execute the function with pooled workers
-        p = Pool(37)
-        p.starmap(postgres_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
+        with Pool(37) as p:
+            p.starmap(postgres_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
 
-        last_tock = datetime.datetime.now()
-        lapse = last_tock - first_tick
-        print('Processing Done.  Total time elapsed: ', lapse)
+        print(f'Method {params_name} complete in ', datetime.datetime.now() - iteration_start)
+
+    last_tock = datetime.datetime.now()
+    lapse = last_tock - first_tick
+    print('Processing Done.  Total time elapsed: ', lapse)
 
 
 
