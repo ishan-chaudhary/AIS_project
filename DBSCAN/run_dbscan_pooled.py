@@ -146,7 +146,7 @@ def postgres_dbscan(uid, eps, min_samp):
     :param uid:
     :return:
     """
-    iteration_start = datetime.datetime.now()
+    #iteration_start = datetime.datetime.now()
     # execute dbscan script
     dbscan_postgres_sql = f"""
     UPDATE clustering_results as c 
@@ -164,7 +164,7 @@ def postgres_dbscan(uid, eps, min_samp):
     conn_pg.commit()
     c_pg.close()
     # add the uid to the tracker and get current uid count from tracker
-    uids_completed = add_to_uid_tracker(uid, conn_pg)
+    # uids_completed = add_to_uid_tracker(uid, conn_pg)
     conn_pg.close()
 
     #print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
@@ -187,7 +187,7 @@ for eps_km in epsilons:
         print(f'Starting processing for {params_name}...')
 
         conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
-        make_uid_tracker(conn)
+        #make_uid_tracker(conn)
         c = conn.cursor()
         # make sure the method name column exists and is clear
         c.execute(f"""ALTER TABLE clustering_results DROP COLUMN IF EXISTS
