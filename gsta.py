@@ -313,7 +313,7 @@ def execute_dbscan(source_table, from_schema_name, to_schema_name, eps_samples_p
 def get_sites(engine):
     """Creates a df with all the ports from the WPI"""
     sites = pd.read_sql_table(table_name='sites', con=engine,
-                              columns=['site_id', 'port_name', 'latitude', 'longitude'])
+                              columns=['site_id', 'port_name', 'latitude', 'longitude', 'region'])
     sites = sites.rename(columns={'latitude': 'lat', 'longitude': 'lon', 'site_id': 'port_id'})
     return sites
 
@@ -522,7 +522,8 @@ def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled,
 
 
 # Network Analysis
-def get_edgelist(edge_table, engine, loiter_time=2):
+def get_edgelist(edge_table, engine, loiter_time=2, start_date='2017-01-01 00:00:00',
+                 end_date='2017-12-31 23:59:59'):
     # select all edges from the database and join them with the port info from wpi
     # if the node is greater than 0 (not 0 which is open ocean or null)
     # and has a time diff less than 2 hours.  That should also eliminate ports a
@@ -536,7 +537,8 @@ def get_edgelist(edge_table, engine, loiter_time=2):
                                  from {edge_table} as edge, sites as sites
                                  where edge.node=sites.site_id and
                                  edge.node > 0 and
-                                 time_diff > '{str(loiter_time)} hours';""", engine)
+                                 time_diff > '{str(loiter_time)} hours'
+                                 and depart_time between '{start_date}' and '{end_date}';""", engine)
     df_stops.sort_values(['uid', 'arrival_time'], inplace=True)
 
     # to build the edge list, we will take the pieces from stops for the current node and the next node
