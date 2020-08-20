@@ -13,3 +13,10 @@ DBSCAN/report/ML1 Presentation.pdf
 
 gsta_config.py alias
 
+/netrd/
+/graphlets/
+.idea/dataSources.local.xml
+.idea/dataSources/
+.idea/workspace.xml
+__pycache__/
+gsta_config.py
