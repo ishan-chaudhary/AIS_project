@@ -206,9 +206,9 @@ for eps_km in epsilons:
 
         print(f'Method {params_name} complete in ', datetime.datetime.now() - iteration_start)
 
-    last_tock = datetime.datetime.now()
-    lapse = last_tock - first_tick
-    print('Processing Done.  Total time elapsed: ', lapse)
+last_tock = datetime.datetime.now()
+lapse = last_tock - first_tick
+print('Processing Done.  Total time elapsed: ', lapse)
 
 
 
