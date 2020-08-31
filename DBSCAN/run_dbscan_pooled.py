@@ -175,7 +175,7 @@ def postgres_dbscan(uid, eps, min_samp):
 # %%
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
-epsilons = [3, 4, 5]
+epsilons = [1, 2, 3, 4, 5]
 min_samples = [25, 50, 100, 200, 300, 400, 500]
 method = 'dbscan'
 
