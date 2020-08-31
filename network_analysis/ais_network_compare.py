@@ -254,7 +254,7 @@ netrd_dists = dict(JaccardDistance=netrd.distance.JaccardDistance(), Hamming=net
                    IpsenMikhailov=netrd.distance.IpsenMikhailov(),
                    NonBacktrackingSpectral=netrd.distance.NonBacktrackingSpectral(),
                    NetSimile=netrd.distance.NetSimile(), DeltaCon=netrd.distance.DeltaCon())
-
+#%%
 # for the smallest graph as reference
 for name, metric in netrd_dists.items():
     try:
@@ -264,7 +264,7 @@ for name, metric in netrd_dists.items():
     except Exception as e:
         print(f'{name} metric had an error:')
         print(e)
-
+#%%
 # for the previous graph as referense
 for name, metric in netrd_dists.items():
     try:
@@ -300,6 +300,37 @@ for name, metric in grakel_dists.items():
         print(f'{name} metric had an error:')
         print(e)
 
+
+#%%
+
+df_stats = df_stats_ais_month
+
+df_stats[['JaccardDistance',
+          'Hamming', 'HammingIpsenMikhailov',
+          'PolynomialDissimilarity', 'PortraitDivergence', 'QuantumSpectralJSD',
+          'DegreeDivergence',
+          'IpsenMikhailov']].plot()
+plt.xticks(rotation=60)
+plt.legend(bbox_to_anchor=(1, 1))
+plt.title('Small-Scale NetRD Metrics for Random Graphs')
+plt.show()
+
+df_stats['Frobenius'].plot()
+plt.xticks(rotation=60)
+plt.title('Large-Scale NetRD Metrics for Random Graphs')
+plt.title('Frobenius')
+plt.show()
+
+df_stats['DeltaCon'].plot()
+plt.xticks(rotation=60)
+plt.title('Large-Scale NetRD Metrics for Random Graphs')
+plt.title('DeltaCon')
+plt.show()
+
+df_stats[['numb_nodes', 'numb_edges']].plot()
+plt.title('Edge and Node Size for Random Graphs')
+plt.xticks(rotation=60)
+plt.show()
 #
 # #%%
 # df_1km_2h = gsta.get_edgelist(edge_table='cargo_edgelist_1km', engine=loc_engine, loiter_time=2)
