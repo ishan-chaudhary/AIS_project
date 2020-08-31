@@ -84,10 +84,13 @@ def add_to_uid_tracker(uid, conn_pg):
 
 
 # %%
-def sklearn_dbscan(uid):
+def sklearn_dbscan(uid, eps, min_samp):
     print('Working on uid:', uid[0])
     iteration_start = datetime.datetime.now()
     engine = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+    conn_pg = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+    c_pg = conn_pg.cursor()
+
     # next get the data for the uid
     read_sql = f"""SELECT id, lat, lon
                 FROM uid_positions
@@ -102,10 +105,22 @@ def sklearn_dbscan(uid):
 
     if method == 'dbscan':
         # execute sklearn's DBSCAN
-        dbscan = DBSCAN(eps=eps, min_samples=min_samples, algorithm='ball_tree',
+        dbscan = DBSCAN(eps=eps, min_samples=min_samp, algorithm='ball_tree',
                         metric='haversine', n_jobs=1)
         dbscan.fit(X)
         results_dict = {'id': x_id, 'clust_id': dbscan.labels_}
+
+    if method == 'optics':
+        # execute sklearn's OPTICS
+        # 5km in radians is max eps
+        optics = OPTICS(min_samples=min_samp, max_eps=5/6371.0088, metric='euclidean', cluster_method='xi',
+                        algorithm='kd_tree', n_jobs=1)
+        optics.fit(X)
+        results_dict = {'id': x_id, 'clust_id': optics.labels_}
+
+    else:
+        print("Error.  Method must be 'dbscan' or 'optics'.")
+        return
 
     # gather the output as a dataframe
     df_results = pd.DataFrame(results_dict)
@@ -116,15 +131,14 @@ def sklearn_dbscan(uid):
                       if_exists='replace', method='multi', index=False)
     engine.dispose()
 
-    # take the clust_ids from the temp table and insert them into the
-    conn_pg = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+    # take the clust_ids from the temp table and insert them into the temp table
     sql_update = f"UPDATE clustering_results AS c " \
                  f"SET {params_name} = clust_id " \
                  f"FROM temp_{str(uid[0])} AS t WHERE t.id = c.id"
-    c_pg = conn_pg.cursor()
+
     c_pg.execute(sql_update)
     conn_pg.commit()
-
+    # delete the temp table
     c_pg.execute(f'DROP TABLE temp_{str(uid[0])};')
     conn_pg.commit()
     c_pg.close()
@@ -135,6 +149,7 @@ def sklearn_dbscan(uid):
     print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
     percentage = (uids_completed / len(uid_list)) * 100
     print(f'Approximately {round(percentage, 3)} complete.')
+
 
 
 def postgres_dbscan(uid, eps, min_samp):
@@ -167,17 +182,17 @@ def postgres_dbscan(uid, eps, min_samp):
     # uids_completed = add_to_uid_tracker(uid, conn_pg)
     conn_pg.close()
 
-    #print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
-    #percentage = (uids_completed / len(uid_list)) * 100
-    #print(f'Approximately {round(percentage, 3)} complete.')
+    print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
+    percentage = (uids_completed / len(uid_list)) * 100
+    print(f'Approximately {round(percentage, 3)} complete.')
 
 
 # %%
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
-epsilons = [1, 2, 3, 4, 5]
+epsilons = [1]
 min_samples = [25, 50, 100, 200, 300, 400, 500]
-method = 'dbscan'
+method = 'optics'
 
 for eps_km in epsilons:
     for min_samp in min_samples:
@@ -202,7 +217,7 @@ for eps_km in epsilons:
 
         # execute the function with pooled workers
         with Pool(37) as p:
-            p.starmap(postgres_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
+            p.starmap(sklearn_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
 
         print(f'Method {params_name} complete in ', datetime.datetime.now() - iteration_start)
 
