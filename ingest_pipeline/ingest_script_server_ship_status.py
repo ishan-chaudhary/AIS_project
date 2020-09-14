@@ -110,8 +110,8 @@ def parse_SQL(file_name, conn=conn):
     print('Copying data to temp table...')
     generator = pd.read_csv(file_name, chunksize=500000)
     for df in generator:
-        df = df[['MMSI', 'BaseDateTime', 'LAT', 'LON', 'VesselType']]
-        df.columns = ['uid', 'time', 'lat', 'lon', 'ship_type']
+        df = df[['MMSI', 'BaseDateTime', 'SOG', 'COG', 'Heading', 'Status', 'VesselType']]
+        df.columns = ['uid', 'time', 'sog', 'cog', 'heading', 'status', 'ship_type']
         # filter by just cargo ships as ship_type
         df = df[df['ship_type'].isin([70,71,72,73,74,75,76,77,78,79,1003,1004,1016])]
         df['time'] = pd.to_datetime(df['time'])
