@@ -69,8 +69,8 @@ c = conn.cursor()
 c.execute("""DROP TABLE IF EXISTS nearest_site""")
 conn.commit()
 c.execute("""CREATE TABLE IF NOT EXISTS nearest_site
-(   id serial,
-    nearest_port_id int,
+(   id int REFERENCES ais_cargo.public.uid_positions (id),
+    nearest_port_id int REFERENCES ais_cargo.public.sites (site_id),
     nearest_port_dist_km float
 );""")
 conn.commit()
