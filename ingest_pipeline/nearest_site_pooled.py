@@ -28,7 +28,7 @@ ball_tree = BallTree(candidates, leaf_size=40, metric='haversine')
 
 def get_nn(uid, tree=ball_tree):
     print('Working on uid:', uid[0])
-    iteration_start = datetime.now()
+    iteration_start = datetime.datetime.now()
     loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
     read_sql = f"""SELECT id, lat, lon
                 FROM uid_positions
@@ -59,7 +59,7 @@ def get_nn(uid, tree=ball_tree):
     loc_conn.commit()
     c.close()
     loc_conn.close()
-    print(f'UID {uid[0]} complete in:', datetime.now() - iteration_start)
+    print(f'UID {uid[0]} complete in:', datetime.datetime.now() - iteration_start)
 
 
 
