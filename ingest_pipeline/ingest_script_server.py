@@ -109,32 +109,32 @@ conn.commit()
 c.close()
 
 # %% create WPI table function
-wpi_csv_path = current_folder + '/WPI_data/wpi_clean.csv'
-
-
-def make_sites(conn, file=wpi_csv_path):
-    c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS sites (
-                    site_id 	int primary key,
-                    region_no	int,
-                    port_name	text,
-                    country		text,
-                    latitude	numeric,
-                    longitude	numeric,
-                    geog		geography,
-                    geom		geometry);""")
-    c.execute("""CREATE INDEX if not exists sites_geom_idx
-              ON sites
-              USING GIST (geom);""")
-    conn.commit()
-    c.execute("""COPY sites FROM '{}'
-        WITH (format csv, header);""".format(file))
-    conn.commit()
-    c.close()
-    print('Sites created')
-
-
-make_sites(conn=conn)
+# wpi_csv_path = current_folder + '/WPI_data/wpi_clean.csv'
+#
+#
+# def make_sites(conn, file=wpi_csv_path):
+#     c = conn.cursor()
+#     c.execute("""CREATE TABLE IF NOT EXISTS sites (
+#                     site_id 	int primary key,
+#                     region_no	int,
+#                     port_name	text,
+#                     country		text,
+#                     latitude	numeric,
+#                     longitude	numeric,
+#                     geog		geography,
+#                     geom		geometry);""")
+#     c.execute("""CREATE INDEX if not exists sites_geom_idx
+#               ON sites
+#               USING GIST (geom);""")
+#     conn.commit()
+#     c.execute("""COPY sites FROM '{}'
+#         WITH (format csv, header);""".format(file))
+#     conn.commit()
+#     c.close()
+#     print('Sites created')
+#
+#
+# make_sites(conn=conn)
 
 
 # %%
