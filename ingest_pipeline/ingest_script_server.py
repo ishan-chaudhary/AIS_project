@@ -26,27 +26,27 @@ loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 
 # %%
 # Create enumerated type for the strings in the status column
-c = conn.cursor()
-c.execute("""DROP TYPE IF EXISTS ship_status;""")
-conn.commit()
-c.execute("""CREATE TYPE ship_status AS ENUM (
-'at anchor',
-'reserved for future use (10)',
-'AIS-SART (active); MOB-AIS; EPIRB-AIS',
-'reserved for future use (13)',
-'reserved for future use (9)',
-'aground',
-'undefined',
-'under way sailing',
-'power-driven vessel towing astern',
-'power-driven vessel pushing ahead or towing alongside',
-'under way using engine',
-'restricted maneuverability',
-'engaged in fishing',
-'constrained by her draught',
-'not under command',
-'moored');""")
-conn.commit()
+# c = conn.cursor()
+# c.execute("""DROP TYPE IF EXISTS ship_status;""")
+# conn.commit()
+# c.execute("""CREATE TYPE ship_status AS ENUM (
+# 'at anchor',
+# 'reserved for future use (10)',
+# 'AIS-SART (active); MOB-AIS; EPIRB-AIS',
+# 'reserved for future use (13)',
+# 'reserved for future use (9)',
+# 'aground',
+# 'undefined',
+# 'under way sailing',
+# 'power-driven vessel towing astern',
+# 'power-driven vessel pushing ahead or towing alongside',
+# 'under way using engine',
+# 'restricted maneuverability',
+# 'engaged in fishing',
+# 'constrained by her draught',
+# 'not under command',
+# 'moored');""")
+# conn.commit()
 
 # Create "imported_data" table in the  database.
 c.execute("""CREATE TABLE IF NOT EXISTS imported_data
