@@ -27,6 +27,8 @@ loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 # %%
 # Create enumerated type for the strings in the status column
 c = conn.cursor()
+c.execute("""DROP TYPE IF EXISTS ship_status;""")
+conn.commit()
 c.execute("""CREATE TYPE ship_status AS ENUM (
 'at anchor',
 'reserved for future use (10)',
