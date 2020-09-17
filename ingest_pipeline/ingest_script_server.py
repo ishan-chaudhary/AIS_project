@@ -64,7 +64,7 @@ c.close()
 # Keep commented out unless we are re-ingesting everything.
 # gsta.drop_table('uid_info', conn)
 # gsta.drop_table('imported_data', conn)
-# gsta.drop_table('uid_positions', conn)
+# gsta.drop_table('uid_positions_status', conn)
 # gsta.drop_table('uid_trips', conn)
 # %% set up proc and error log
 current_folder = '/home/patrickfmaus/AIS_project'
@@ -185,7 +185,7 @@ def parse_sql(file_name, conn=conn):
         df.to_sql(name='imported_data', con=loc_engine, if_exists='append', method='multi', index=False)
     print('Copying complete!')
     # this will only insert positions from cargo ship types
-    c.execute("""INSERT INTO uid_positions (uid, time, geom, lat, lon, sog, cog, status, anchored, moored, underway)
+    c.execute("""INSERT INTO uid_positions_status (uid, time, geom, lat, lon, sog, cog, status, anchored, moored, underway)
                 SELECT uid, 
                 time, 
                 ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
@@ -313,7 +313,7 @@ conn.close()
 tick = datetime.datetime.now()
 print('Making trips table')
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-make_trips('uid_trips', 'uid_positions', conn=conn)
+make_trips('uid_trips', 'uid_positions_status', conn=conn)
 print('Trips table built.')
 tock = datetime.datetime.now()
 lapse = tock - tick
@@ -321,15 +321,15 @@ print('Time elapsed: {} \n'.format(lapse))
 conn.close()
 # %% indices.  These can take a long time to build.
 tick = datetime.datetime.now()
-print('Adding indices to uid_positions')
+print('Adding indices to uid_positions_status')
 
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists position_uid_idx 
-            on uid_positions (uid);""")
+            on uid_positions_status (uid);""")
 conn.commit()
 # c.execute("""CREATE INDEX if not exists position_geom_idx
-#             ON uid_positions USING GIST (geom);""")
+#             ON uid_positions_status USING GIST (geom);""")
 # conn.commit()
 print('Indices built.')
 tock = datetime.datetime.now()
