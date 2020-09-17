@@ -110,7 +110,6 @@ c.close()
 
 # %% create WPI table function
 wpi_csv_path = current_folder + '/WPI_data/wpi_clean.csv'
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
 
 
 def make_sites(conn, file=wpi_csv_path):
