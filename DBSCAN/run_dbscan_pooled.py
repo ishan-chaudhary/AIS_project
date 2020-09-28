@@ -132,6 +132,9 @@ def sklearn_dbscan(uid, eps, min_samp):
         df_results = df_results[df_results['clust_id'] != -1]
         # write results to database in a temp table with the uid in the name
         temp_table_name = f'temp_{str(uid[0])}'
+        sql_drop_table = f"""DROP TABLE IF EXISTS {temp_table_name};"""
+        c_pg.execute(sql_drop_table)
+        conn_pg.commit()
         sql_create_table = f"""CREATE TEMPORARY TABLE {temp_table_name}
                            (id int, 
                            clust_id int);"""
@@ -139,7 +142,6 @@ def sklearn_dbscan(uid, eps, min_samp):
         conn_pg.commit()
         df_results.to_sql(name=temp_table_name, con=engine_pg,
                           if_exists='append', method='multi', index=False)
-
         # take the clust_ids from the temp table and insert them into the temp table
         sql_update = f"UPDATE clustering_results AS c " \
                      f"SET {params_name} = clust_id " \
@@ -148,14 +150,13 @@ def sklearn_dbscan(uid, eps, min_samp):
         conn_pg.commit()
         c_pg.close()
 
-
     except Exception as e:
         print(f'UID {uid[0]} error in clustering or writing clustering results to the database.')
         print(e)
 
     # delete the temp table
     c_pg = conn_pg.cursor()
-    c_pg.execute(f'DROP TABLE {temp_table_name};')
+    c_pg.execute(f'DROP TABLE IF EXISTS {temp_table_name};')
     conn_pg.commit()
     # add the uid to the tracker and get current uid count from tracker
     uids_completed = add_to_uid_tracker(uid, conn_pg)
@@ -236,7 +237,11 @@ for eps_km in epsilons:
 
         # execute the function with pooled workers
         with Pool(20) as p:
-            p.starmap(sklearn_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
+            try:
+                p.starmap(sklearn_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
+            except Exception as e:
+                print (e)
+
 
         print(f'Method {params_name} complete in ', datetime.datetime.now() - iteration_start)
 
