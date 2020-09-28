@@ -87,8 +87,9 @@ def add_to_uid_tracker(uid, conn_pg):
 
 
 # %%
-def sklearn_dbscan(uid, eps, min_samp):
+def sklearn_dbscan(uid, eps, min_samp, print_verbose=False):
     iteration_start = datetime.datetime.now()
+    temp_table_name = f'temp_{str(uid[0])}'
 
     engine_pg = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
     conn_pg = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
@@ -131,7 +132,6 @@ def sklearn_dbscan(uid, eps, min_samp):
         # drop all -1 clust_id, which are all points not in clusters
         df_results = df_results[df_results['clust_id'] != -1]
         # write results to database in a temp table with the uid in the name
-        temp_table_name = f'temp_{str(uid[0])}'
         sql_drop_table = f"""DROP TABLE IF EXISTS {temp_table_name};"""
         c_pg.execute(sql_drop_table)
         conn_pg.commit()
@@ -166,9 +166,10 @@ def sklearn_dbscan(uid, eps, min_samp):
     engine_pg.dispose()
     conn_pg.close()
 
-    print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
-    percentage = (uids_completed / len(uid_list)) * 100
-    print(f'Approximately {round(percentage, 3)} complete this run.')
+    if print_verbose = True:
+        print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
+        percentage = (uids_completed / len(uid_list)) * 100
+        print(f'Approximately {round(percentage, 3)} complete this run.')
 
 
 def postgres_dbscan(uid, eps, min_samp):
@@ -211,7 +212,8 @@ first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 # for optics, just put the max eps in for list of epsilons.
 epsilons = [5]
-min_samples = [25, 50, 100, 200, 300, 400, 500]
+min_samples = [25]
+#min_samples = [25, 50, 100, 200, 300, 400, 500]
 method = 'optics'
 
 for eps_km in epsilons:
