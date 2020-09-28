@@ -166,7 +166,7 @@ def sklearn_dbscan(uid, eps, min_samp, print_verbose=False):
     engine_pg.dispose()
     conn_pg.close()
 
-    if print_verbose = True:
+    if print_verbose == True:
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
         percentage = (uids_completed / len(uid_list)) * 100
         print(f'Approximately {round(percentage, 3)} complete this run.')
