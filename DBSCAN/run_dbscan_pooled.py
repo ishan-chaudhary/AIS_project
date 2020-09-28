@@ -12,8 +12,11 @@ import gsta
 import gsta_config
 
 from importlib import reload
-
 reload(gsta)
+
+import warnings
+warnings.filterwarnings('ignore')
+
 #%%
 start_time = '2017-01-01 00:00:00'
 end_time = '2017-02-01 00:00:00'
@@ -77,10 +80,10 @@ def add_to_uid_tracker(uid, conn_pg):
     conn_pg.commit()
     # get total number of uids completed
     c_pg.execute("""SELECT count(distinct(uid)) from uid_tracker""")
-    uids_completed = (c_pg.fetchone())
+    uids_len = (c_pg.fetchone())
     c_pg.close()
     conn_pg.close()
-    return uids_completed[0] # remember its a tuple from the db.  [0] gets the int
+    return uids_len[0] # remember its a tuple from the db.  [0] gets the int
 
 
 # %%
@@ -103,58 +106,72 @@ def sklearn_dbscan(uid, eps, min_samp):
     X = (np.radians(df.loc[:, ['lon', 'lat']].values))
     x_id = df.loc[:, 'id'].values
 
-    if method == 'dbscan':
-        # execute sklearn's DBSCAN
-        dbscan = DBSCAN(eps=eps, min_samples=min_samp, algorithm='ball_tree',
-                        metric='haversine', n_jobs=1)
-        dbscan.fit(X)
-        results_dict = {'id': x_id, 'clust_id': dbscan.labels_}
+    try:
+        if method == 'dbscan':
+            # execute sklearn's DBSCAN
+            dbscan = DBSCAN(eps=eps, min_samples=min_samp, algorithm='ball_tree',
+                            metric='haversine', n_jobs=1)
+            dbscan.fit(X)
+            results_dict = {'id': x_id, 'clust_id': dbscan.labels_}
 
-    if method == 'optics':
-        # execute sklearn's OPTICS
-        # 5km in radians is max eps
-        optics = OPTICS(max_eps=eps, min_samples=min_samp,  metric='euclidean', cluster_method='xi',
-                        algorithm='kd_tree', n_jobs=1)
-        optics.fit(X)
-        results_dict = {'id': x_id, 'clust_id': optics.labels_}
+        if method == 'optics':
+            # execute sklearn's OPTICS
+            # 5km in radians is max eps
+            optics = OPTICS(max_eps=eps, min_samples=min_samp,  metric='euclidean', cluster_method='xi',
+                            algorithm='kd_tree', n_jobs=1)
+            optics.fit(X)
+            results_dict = {'id': x_id, 'clust_id': optics.labels_}
 
-    else:
-        print("Error.  Method must be 'dbscan' or 'optics'.")
-        return
+        else:
+            print("Error.  Method must be 'dbscan' or 'optics'.")
+            return
+    except Exception as e:
+        print(f'UID {uid[0]} error occurred in clustering.')
+        print(e)
 
-    # gather the output as a dataframe
-    df_results = pd.DataFrame(results_dict)
-    # drop all -1 clust_id, which are all points not in clusters
-    df_results = df_results[df_results['clust_id'] != -1]
-    # write results to database in a temp table with the uid in the name
-    temp_table_name = f'temp_{str(uid[0])}'
-    sql_create_table = f"""CREATE TEMPORARY TABLE IF NOT EXISTS {temp_table_name}
-                       (id int, 
-                       clust_id int);"""
-    c_pg.execute(sql_create_table)
-    conn_pg.commit()
-    df_results.to_sql(name=temp_table_name, con=engine_pg,
-                      if_exists='append', method='multi', index=False)
+    try:
+        # gather the output as a dataframe
+        df_results = pd.DataFrame(results_dict)
+        # drop all -1 clust_id, which are all points not in clusters
+        df_results = df_results[df_results['clust_id'] != -1]
+        # write results to database in a temp table with the uid in the name
+        temp_table_name = f'temp_{str(uid[0])}'
+        sql_create_table = f"""CREATE TEMPORARY TABLE {temp_table_name}
+                           (id int, 
+                           clust_id int);"""
+        c_pg.execute(sql_create_table)
+        conn_pg.commit()
+        df_results.to_sql(name=temp_table_name, con=engine_pg,
+                          if_exists='append', method='multi', index=False)
 
-    # take the clust_ids from the temp table and insert them into the temp table
-    sql_update = f"UPDATE clustering_results AS c " \
-                 f"SET {params_name} = clust_id " \
-                 f"FROM {temp_table_name} AS t WHERE t.id = c.id"
-    c_pg.execute(sql_update)
-    conn_pg.commit()
+        # take the clust_ids from the temp table and insert them into the temp table
+        sql_update = f"UPDATE clustering_results AS c " \
+                     f"SET {params_name} = clust_id " \
+                     f"FROM {temp_table_name} AS t WHERE t.id = c.id"
+        c_pg.execute(sql_update)
+        conn_pg.commit()
+        c_pg.close()
+
+
+    except Exception as e:
+        print(f'UID {uid[0]} error in writing clustering results to the database.')
+        print(e)
+
     # delete the temp table
-    c_pg.execute(f'DROP TABLE {temp_table_name};')
+    c_pg = conn_pg.cursor()
+    c_pg.execute(f'DROP TABLE {temp_table_name} IF EXISTS;')
     conn_pg.commit()
-    c_pg.close()
     # add the uid to the tracker and get current uid count from tracker
     uids_completed = add_to_uid_tracker(uid, conn_pg)
+    c_pg.close()
 
+    # delete the connections
     engine_pg.dispose()
     conn_pg.close()
 
     print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
     percentage = (uids_completed / len(uid_list)) * 100
-    print(f'Approximately {round(percentage, 3)} complete.')
+    print(f'Approximately {round(percentage, 3)} complete this run.')
 
 
 def postgres_dbscan(uid, eps, min_samp):
