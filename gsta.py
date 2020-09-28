@@ -61,7 +61,8 @@ def connect_psycopg2(params, print_verbose=True):
 
 def connect_engine(params, print_verbose=True):
     """ Create SQLAlchemy engine from dict of parameters"""
-    print('Creating Engine...')
+    if print_verbose is True:
+        print('Creating Engine...')
     try:
         engine = (create_engine(f"postgresql://{params['user']}:{params['password']}"
                                 f"@{params['host']}:{params['port']}/{params['database']}"))
@@ -321,17 +322,14 @@ def get_sites(engine):
 def get_sites_labeled(table_name, engine):
     """Creates a df with all the labeled ports derived from earlier process in the data ETL"""
     ports_labeled = pd.read_sql_table(table_name, con=engine,
-                                      columns=['port_name', 'nearest_port_id', 'count'])
+                                      columns=['port_name', 'nearest_site_id', 'count'])
     return ports_labeled
 
 
-def calc_dist(df_results, clust_id_value, engine):
+def calc_centers(df_results, clust_id_value='clust_id'):
     """This function finds the center of a cluster from dbscan results,
-    determines the nearest port, and finds the average distance for each
-    cluster point from its cluster center.  Returns a df."""
-
-    ports_wpi = get_sites(engine)
-
+    and finds the average distance for each cluster point from its cluster center.
+    Returns a df."""
     # make a new df from the df_results grouped by cluster id
     # with the mean for lat and long
     df_centers = (df_results[[clust_id_value, 'lat', 'lon']]
@@ -339,22 +337,6 @@ def calc_dist(df_results, clust_id_value, engine):
                   .mean()
                   .rename({'lat': 'average_lat', 'lon': 'average_lon'}, axis=1)
                   .reset_index())
-
-    # Now we are going to use sklearn's KDTree to find the nearest neighbor of
-    # each center for the nearest port.
-    points_of_int = np.radians(df_centers.loc[:, ['average_lat', 'average_lon']].values)
-    candidates = np.radians(ports_wpi.loc[:, ['lat', 'lon']].values)
-    tree = BallTree(candidates, leaf_size=30, metric='haversine')
-
-    nearest_list = []
-    for i in range(len((points_of_int))):
-        dist, ind = tree.query(points_of_int[i, :].reshape(1, -1), k=1)
-        nearest_dict = {clust_id_value: df_centers.iloc[i].loc[clust_id_value],
-                        'nearest_port_id': ports_wpi.iloc[ind[0][0]].loc['port_id'],
-                        'nearest_port_dist': dist[0][0] * 6371.0088}
-        nearest_list.append(nearest_dict)
-    df_nearest = pd.DataFrame(nearest_list)
-    df_centers = pd.merge(df_centers, df_nearest, how='left', on=clust_id_value)
 
     # find the average distance from the centerpoint
     # We'll calculate this by finding all of the distances between each point in
@@ -366,9 +348,7 @@ def calc_dist(df_results, clust_id_value, engine):
         Y = (np.radians(df_centers[df_centers[clust_id_value] == i]
                         .loc[:, ['average_lat', 'average_lon']].values))
         haver_result = (haversine_distances(X, Y)) * 6371.0088  # km to radians
-        haver_dict = {clust_id_value: i, 'min_dist_from_center': haver_result.min(),
-                      'max_dist_from_center': haver_result.max(),
-                      'average_dist_from_center': np.mean(haver_result)}
+        haver_dict = {clust_id_value: i, 'average_dist_from_center': np.mean(haver_result)}
         haver_list.append(haver_dict)
 
     # merge the haver results back to df_centers
@@ -385,6 +365,23 @@ def calc_dist(df_results, clust_id_value, engine):
     df_centers = pd.merge(df_centers, clust_size, how='left', on=clust_id_value)
     return df_centers
 
+def calc_nearest_site():
+    # Now we are going to use sklearn's KDTree to find the nearest neighbor of
+    # each center for the nearest port.
+    points_of_int = np.radians(df_centers.loc[:, ['average_lat', 'average_lon']].values)
+    candidates = np.radians(ports_wpi.loc[:, ['lat', 'lon']].values)
+    tree = BallTree(candidates, leaf_size=30, metric='haversine')
+    ports_wpi = get_sites(engine)
+    nearest_list = []
+    for i in range(len((points_of_int))):
+        dist, ind = tree.query(points_of_int[i, :].reshape(1, -1), k=1)
+        nearest_dict = {clust_id_value: df_centers.iloc[i].loc[clust_id_value],
+                        'nearest_site_id': ports_wpi.iloc[ind[0][0]].loc['port_id'],
+                        'nearest_port_dist': dist[0][0] * 6371.0088}
+        nearest_list.append(nearest_dict)
+    df_nearest = pd.DataFrame(nearest_list)
+    df_centers = pd.merge(df_centers, df_nearest, how='left', on=clust_id_value)
+
 
 def calc_harmonic_mean(precision, recall):
     return (2 * ((precision * recall) / (precision + recall)))
@@ -399,9 +396,9 @@ def calc_stats(df_rollup, ports_labeled, engine, noise_filter):
     # are near a given port.  Increasing this will increase recall because there
     # are fewer "hard" ports to indetify with very little activity.
     df_stats = pd.merge((df_rollup[df_rollup['nearest_port_dist'] < 5]
-                         .drop_duplicates('nearest_port_id')),
+                         .drop_duplicates('nearest_site_id')),
                         df_ports_labeled[df_ports_labeled['count'] > noise_filter],
-                        how='outer', on='nearest_port_id', indicator=True)
+                        how='outer', on='nearest_site_id', indicator=True)
     # this df lists where the counts in the merge.
     # left_only are ports only in the dbscan.  (false positives for dbscan)
     # right_only are ports only in the ports near positions.  (false negatives for dbscan)
@@ -411,10 +408,10 @@ def calc_stats(df_rollup, ports_labeled, engine, noise_filter):
     # it is the number of true positives divided by TP + FN
     stats_recall = (values['both'] /
                     (len((df_ports_labeled[df_ports_labeled['count'] > noise_filter])
-                         .drop_duplicates('nearest_port_id'))))
+                         .drop_duplicates('nearest_site_id'))))
     # precision is the proportion of selected items that are relevant.
     # it is the number of true positives our of all items selected by dbscan.
-    stats_precision = values['both'] / len(df_rollup.drop_duplicates('nearest_port_id'))
+    stats_precision = values['both'] / len(df_rollup.drop_duplicates('nearest_site_id'))
     # now find the f_measure, which is the harmonic mean of precision and recall
     stats_f_measure = calc_harmonic_mean(stats_precision, stats_recall)
     return stats_f_measure, stats_precision, stats_recall
