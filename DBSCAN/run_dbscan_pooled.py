@@ -125,11 +125,7 @@ def sklearn_dbscan(uid, eps, min_samp):
         else:
             print("Error.  Method must be 'dbscan' or 'optics'.")
             return
-    except Exception as e:
-        print(f'UID {uid[0]} error occurred in clustering.')
-        print(e)
 
-    try:
         # gather the output as a dataframe
         df_results = pd.DataFrame(results_dict)
         # drop all -1 clust_id, which are all points not in clusters
@@ -154,7 +150,7 @@ def sklearn_dbscan(uid, eps, min_samp):
 
 
     except Exception as e:
-        print(f'UID {uid[0]} error in writing clustering results to the database.')
+        print(f'UID {uid[0]} error in clustering or writing clustering results to the database.')
         print(e)
 
     # delete the temp table
