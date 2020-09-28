@@ -155,7 +155,7 @@ def sklearn_dbscan(uid, eps, min_samp):
 
     # delete the temp table
     c_pg = conn_pg.cursor()
-    c_pg.execute(f'DROP TABLE {temp_table_name} IF EXISTS;')
+    c_pg.execute(f'DROP TABLE {temp_table_name};')
     conn_pg.commit()
     # add the uid to the tracker and get current uid count from tracker
     uids_completed = add_to_uid_tracker(uid, conn_pg)
