@@ -85,9 +85,9 @@ def add_to_uid_tracker(uid, conn_pg):
 
 # %%
 def sklearn_dbscan(uid, eps, min_samp):
-    print('Working on uid:', uid[0])
     iteration_start = datetime.datetime.now()
-    engine = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+
+    engine_pg = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
     conn_pg = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
     c_pg = conn_pg.cursor()
 
@@ -97,7 +97,7 @@ def sklearn_dbscan(uid, eps, min_samp):
                 WHERE uid = '{uid[0]}'
                 AND time between '{start_time}' and '{end_time}'
                 ORDER by time"""
-    df = pd.read_sql_query(read_sql, con=engine)
+    df = pd.read_sql_query(read_sql, con=engine_pg)
 
     # format data for dbscan
     X = (np.radians(df.loc[:, ['lon', 'lat']].values))
@@ -113,7 +113,7 @@ def sklearn_dbscan(uid, eps, min_samp):
     if method == 'optics':
         # execute sklearn's OPTICS
         # 5km in radians is max eps
-        optics = OPTICS(min_samples=min_samp, max_eps=5/6371.0088, metric='euclidean', cluster_method='xi',
+        optics = OPTICS(max_eps=eps, min_samples=min_samp,  metric='euclidean', cluster_method='xi',
                         algorithm='kd_tree', n_jobs=1)
         optics.fit(X)
         results_dict = {'id': x_id, 'clust_id': optics.labels_}
@@ -127,29 +127,34 @@ def sklearn_dbscan(uid, eps, min_samp):
     # drop all -1 clust_id, which are all points not in clusters
     df_results = df_results[df_results['clust_id'] != -1]
     # write results to database in a temp table with the uid in the name
-    df_results.to_sql(name=f'temp_{str(uid[0])}', con=engine,
-                      if_exists='replace', method='multi', index=False)
-    engine.dispose()
+    temp_table_name = f'temp_{str(uid[0])}'
+    sql_create_table = f"""CREATE TEMPORARY TABLE IF NOT EXISTS {temp_table_name}
+                       (id int, 
+                       clust_id int);"""
+    c_pg.execute(sql_create_table)
+    conn_pg.commit()
+    df_results.to_sql(name=temp_table_name, con=engine_pg,
+                      if_exists='append', method='multi', index=False)
 
     # take the clust_ids from the temp table and insert them into the temp table
     sql_update = f"UPDATE clustering_results AS c " \
                  f"SET {params_name} = clust_id " \
-                 f"FROM temp_{str(uid[0])} AS t WHERE t.id = c.id"
-
+                 f"FROM {temp_table_name} AS t WHERE t.id = c.id"
     c_pg.execute(sql_update)
     conn_pg.commit()
     # delete the temp table
-    c_pg.execute(f'DROP TABLE temp_{str(uid[0])};')
+    c_pg.execute(f'DROP TABLE {temp_table_name};')
     conn_pg.commit()
     c_pg.close()
     # add the uid to the tracker and get current uid count from tracker
     uids_completed = add_to_uid_tracker(uid, conn_pg)
+
+    engine_pg.dispose()
     conn_pg.close()
 
     print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
     percentage = (uids_completed / len(uid_list)) * 100
     print(f'Approximately {round(percentage, 3)} complete.')
-
 
 
 def postgres_dbscan(uid, eps, min_samp):
@@ -179,7 +184,7 @@ def postgres_dbscan(uid, eps, min_samp):
     conn_pg.commit()
     c_pg.close()
     # add the uid to the tracker and get current uid count from tracker
-    # uids_completed = add_to_uid_tracker(uid, conn_pg)
+    uids_completed = add_to_uid_tracker(uid, conn_pg)
     conn_pg.close()
 
     print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
@@ -190,7 +195,8 @@ def postgres_dbscan(uid, eps, min_samp):
 # %%
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
-epsilons = [1]
+# for optics, just put the max eps in for list of epsilons.
+epsilons = [5]
 min_samples = [25, 50, 100, 200, 300, 400, 500]
 method = 'optics'
 
@@ -202,7 +208,7 @@ for eps_km in epsilons:
         print(f'Starting processing for {params_name}...')
 
         conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
-        #make_uid_tracker(conn)
+        make_uid_tracker(conn)
         c = conn.cursor()
         # make sure the method name column exists and is clear
         c.execute(f"""ALTER TABLE clustering_results DROP COLUMN IF EXISTS
@@ -216,7 +222,7 @@ for eps_km in epsilons:
         conn.close()
 
         # execute the function with pooled workers
-        with Pool(37) as p:
+        with Pool(20) as p:
             p.starmap(sklearn_dbscan, zip(uid_list, repeat(eps), repeat(min_samp)))
 
         print(f'Method {params_name} complete in ', datetime.datetime.now() - iteration_start)
