@@ -73,7 +73,7 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
         uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
         percentage = (uids_completed / len(uid_list)) * 100
-        print(f'Approximately {round(percentage, 3)} complete for {eps_km} epsilon and {min_samp} min sample run.')
+        print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps and {min_samp} min sample run.')
 
     # close the connections
     c_pg.close()
@@ -112,7 +112,7 @@ for eps_km in epsilons_km:
         gnact.utils.make_uid_tracker(conn)
 
         # execute the function with pooled workers.  This will populate the empty table
-        with Pool(35) as p:
+        with Pool(20) as p:
             try:
                  p.starmap(pooled_clustering, zip(uid_list, repeat(eps_km), repeat(min_samp), repeat(method)))
             except Exception as e:
@@ -125,9 +125,8 @@ for eps_km in epsilons_km:
         c.execute(f"""ALTER TABLE clustering_results ADD COLUMN IF NOT EXISTS
                     {params_name} int;""")
         conn.commit()
-        c.close()
         print(f'Clean column for {params_name} exists at {datetime.datetime.now()}.')
-        conn.close()
+
         # add foriegn keys to speed up the join
         print('Adding foreign keys at ...')
         c.execute(f"""ALTER TABLE {params_name} ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES clustering_results (id)""")
