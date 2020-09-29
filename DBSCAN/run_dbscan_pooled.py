@@ -71,9 +71,9 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
         print(e)
     if print_verbose == True:
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
-        uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
-        percentage = (uids_completed / len(uid_list)) * 100
-        print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps and {min_samp} min sample run.')
+        # uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
+        # percentage = (uids_completed / len(uid_list)) * 100
+        # print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps and {min_samp} min sample run.')
 
     # close the connections
     c_pg.close()
