@@ -168,16 +168,19 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
     # delete the temp table
     c_pg.execute(sql_drop_table)
     conn_pg.commit()
-    c_pg.close()
-    # close the connections
-    engine_pg.dispose()
-    conn_pg.close()
 
     if print_verbose == True:
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
         uids_completed = add_to_uid_tracker(uid, conn_pg)
         percentage = (uids_completed / len(uid_list)) * 100
         print(f'Approximately {round(percentage, 3)} complete this run.')
+
+    # close the connections
+    c_pg.close()
+    engine_pg.dispose()
+    conn_pg.close()
+
+
 
 def postgres_dbscan_reworked(uid, eps_km, min_samp):
     """
@@ -249,6 +252,8 @@ for eps_km in epsilons_km:
                  p.starmap(pooled_clustering, zip(uid_list, repeat(eps_km), repeat(min_samp), repeat(method)))
             except Exception as e:
                 print(e)
+
+
 
         print(f'Method {params_name} complete in ', datetime.datetime.now() - iteration_start)
 
