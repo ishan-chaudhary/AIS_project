@@ -57,7 +57,7 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
     conn_pg = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
     c_pg = conn_pg.cursor()
     # get the positions for the uid, and cluster them
-    df_posits = gnact.clust.get_uid_posits(uid, engine_pg)
+    df_posits = gnact.clust.get_uid_posits(uid, engine_pg, end_time=end_time)
     df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
     # drop the lat/lon to save space
     df_results = df_results.drop(['lat', 'lon'], axis=1)
@@ -71,10 +71,9 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
         print(e)
     if print_verbose == True:
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
-        # uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
-        # percentage = (uids_completed / len(uid_list)) * 100
-        # print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps and {min_samp} min sample run.')
-
+        uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
+        percentage = (uids_completed / len(uid_list)) * 100
+        print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps and {min_samp} min sample run.')
     # close the connections
     c_pg.close()
     conn_pg.close()
@@ -155,3 +154,14 @@ last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 
+#%%
+
+# create db connections within the loop
+engine_pg = gnact.utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+conn_pg = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+c_pg = conn_pg.cursor()
+# get the positions for the uid, and cluster them
+df_posits = gnact.clust.get_uid_posits(uid, engine_pg)
+df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
+# drop the lat/lon to save space
+df_results = df_results.drop(['lat', 'lon'], axis=1)
