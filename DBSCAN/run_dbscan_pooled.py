@@ -20,7 +20,7 @@ warnings.filterwarnings('ignore')
 
 # %%
 start_time = '2017-01-01 00:00:00'
-end_time = '2018-01-01 00:00:00'
+end_time = '2017-02-01 00:00:00'
 
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
 conn = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
