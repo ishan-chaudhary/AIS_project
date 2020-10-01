@@ -25,19 +25,19 @@ end_time = '2017-02-01 00:00:00'
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
 conn = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
-# Create "clustering_results" table in the database.
-c.execute(f"""CREATE TABLE IF NOT EXISTS clustering_results 
-        AS (SELECT id from uid_positions
-        where time between '{start_time}' and '{end_time}'
-        );""")
-conn.commit()
-print('clustering_results table exists.')
-
-# make sure the index is created
-c.execute("""CREATE INDEX if not exists clustering_results_id_idx 
-            on clustering_results (id);""")
-conn.commit()
-print('Index on id in clustering_results exists.')
+# # Create "clustering_results" table in the database.
+# c.execute(f"""CREATE TABLE IF NOT EXISTS clustering_results
+#         AS (SELECT id from uid_positions
+#         where time between '{start_time}' and '{end_time}'
+#         );""")
+# conn.commit()
+# print('clustering_results table exists.')
+#
+# # make sure the index is created
+# c.execute("""CREATE INDEX if not exists clustering_results_id_idx
+#             on clustering_results (id);""")
+# conn.commit()
+# print('Index on id in clustering_results exists.')
 
 # get the uid list from the uid_trips table
 c.execute(f"""SELECT DISTINCT(uid) FROM uid_positions
@@ -47,6 +47,8 @@ print(f'{str(len(uid_list))} total uids returned.')
 
 c.close()
 conn.close()
+
+
 #%%
 def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
     iteration_start = datetime.datetime.now()
@@ -64,15 +66,11 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
         df_results = df_results.drop(['lat', 'lon'], axis=1)
         # add the clust_id to the uid to make uid unique clusters.
         #df_results['clust_id'] = df_results['clust_id'].astype('str') + '_' + uid[0]
-    except Exception as e:
-        print(f'UID {uid[0]} error in getting clustering results.')
-        print(e)
-    # write the results to the db
-    try:
+        # write the results to the db
         df_results.to_sql(name=table_name, con=engine_pg,
                           if_exists='append', method='multi', index=False)
     except Exception as e:
-        print(f'UID {uid[0]} error in writing clustering results to the database.')
+        print(f'UID {uid[0]} error in clustering or writing results to db.')
         print(e)
     if print_verbose == True:
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
@@ -90,7 +88,8 @@ first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 # for optics, just put the max eps in for list of epsilons.
 epsilons_km = [5]
-min_samples = [25, 50, 100, 200, 300, 400, 500]
+min_samples = [25]
+#min_samples = [25, 50, 100, 200, 300, 400, 500]
 method = 'optics'
 
 for eps_km in epsilons_km:
@@ -120,7 +119,7 @@ for eps_km in epsilons_km:
             try:
                  p.starmap(pooled_clustering, zip(uid_list, repeat(eps_km), repeat(min_samp), repeat(method)))
             except Exception as e:
-                print(e)
+                print('Error in pooling:', e)
         print(f'Finished pooled clustering at {datetime.datetime.now()}')
         # make sure the method name column exists and is clear
         c.execute(f"""ALTER TABLE clustering_results DROP COLUMN IF EXISTS
@@ -158,15 +157,3 @@ for eps_km in epsilons_km:
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
-
-#%%
-
-# create db connections within the loop
-engine_pg = gnact.utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
-conn_pg = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
-c_pg = conn_pg.cursor()
-# get the positions for the uid, and cluster them
-df_posits = gnact.clust.get_uid_posits(uid, engine_pg)
-df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
-# drop the lat/lon to save space
-df_results = df_results.drop(['lat', 'lon'], axis=1)
