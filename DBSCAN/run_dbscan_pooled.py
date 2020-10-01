@@ -51,18 +51,23 @@ conn.close()
 def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
     iteration_start = datetime.datetime.now()
     table_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
-
     # create db connections within the loop
     engine_pg = gnact.utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
     conn_pg = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
     c_pg = conn_pg.cursor()
-    # get the positions for the uid, and cluster them
-    df_posits = gnact.clust.get_uid_posits(uid, engine_pg, end_time=end_time)
-    df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
-    # drop the lat/lon to save space
-    df_results = df_results.drop(['lat', 'lon'], axis=1)
-    # add the clust_id to the uid to make uid unique clusters.
-    #df_results['clust_id'] = df_results['clust_id'].astype('str') + '_' + uid[0]
+    # get the clustering results
+    try:
+        # get the positions for the uid, and cluster them
+        df_posits = gnact.clust.get_uid_posits(uid, engine_pg, end_time=end_time)
+        df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
+        # drop the lat/lon to save space
+        df_results = df_results.drop(['lat', 'lon'], axis=1)
+        # add the clust_id to the uid to make uid unique clusters.
+        #df_results['clust_id'] = df_results['clust_id'].astype('str') + '_' + uid[0]
+    except Exception as e:
+        print(f'UID {uid[0]} error in getting clustering results.')
+        print(e)
+    # write the results to the db
     try:
         df_results.to_sql(name=table_name, con=engine_pg,
                           if_exists='append', method='multi', index=False)
@@ -127,7 +132,7 @@ for eps_km in epsilons_km:
         print(f'Clean column for {params_name} exists at {datetime.datetime.now()}.')
 
         # add foriegn keys to speed up the join
-        print('Adding foreign keys at ...')
+        print('Adding foreign keys ...')
         c.execute(f"""ALTER TABLE {params_name} ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES clustering_results (id)""")
         conn.commit()
         print(f'Foreign keys added at {datetime.datetime.now()}.')
