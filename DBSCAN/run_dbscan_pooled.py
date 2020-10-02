@@ -88,8 +88,7 @@ first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 # for optics, just put the max eps in for list of epsilons.
 epsilons_km = [5]
-min_samples = [25]
-#min_samples = [25, 50, 100, 200, 300, 400, 500]
+min_samples = [100, 200, 300, 400, 500]
 method = 'optics'
 
 for eps_km in epsilons_km:
@@ -131,10 +130,10 @@ for eps_km in epsilons_km:
         print(f'Clean column for {params_name} exists at {datetime.datetime.now()}.')
 
         # add foriegn keys to speed up the join
-        print('Adding foreign keys ...')
-        c.execute(f"""ALTER TABLE {params_name} ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES clustering_results (id)""")
-        conn.commit()
-        print(f'Foreign keys added at {datetime.datetime.now()}.')
+        # print('Adding foreign keys ...')
+        # c.execute(f"""ALTER TABLE {params_name} ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES clustering_results (id)""")
+        # conn.commit()
+        # print(f'Foreign keys added at {datetime.datetime.now()}.')
 
         print('Updating clustering_results table...')
         # take the clust_ids from the temp table and insert them into the temp table
