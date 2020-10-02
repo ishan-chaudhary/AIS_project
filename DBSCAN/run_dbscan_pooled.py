@@ -1,9 +1,4 @@
 import datetime
-
-import pandas as pd
-import numpy as np
-from sklearn.cluster import DBSCAN
-from sklearn.cluster import OPTICS
 from multiprocessing import Pool
 from itertools import repeat
 
@@ -13,10 +8,12 @@ from gnact import utils
 from gnact import clust
 
 from importlib import reload
-reload(gnact)
-
 import warnings
+
 warnings.filterwarnings('ignore')
+
+# noinspection PyTypeChecker
+reload(gnact)
 
 # %%
 start_time = '2017-01-01 00:00:00'
@@ -25,19 +22,19 @@ end_time = '2017-02-01 00:00:00'
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
 conn = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
-# # Create "clustering_results" table in the database.
-# c.execute(f"""CREATE TABLE IF NOT EXISTS clustering_results
-#         AS (SELECT id from uid_positions
-#         where time between '{start_time}' and '{end_time}'
-#         );""")
-# conn.commit()
-# print('clustering_results table exists.')
-#
-# # make sure the index is created
-# c.execute("""CREATE INDEX if not exists clustering_results_id_idx
-#             on clustering_results (id);""")
-# conn.commit()
-# print('Index on id in clustering_results exists.')
+# Create "clustering_results" table in the database.
+c.execute(f"""CREATE TABLE IF NOT EXISTS clustering_results
+        AS (SELECT id from uid_positions
+        where time between '{start_time}' and '{end_time}'
+        );""")
+conn.commit()
+print('clustering_results table exists.')
+
+# make sure the index is created
+c.execute("""CREATE INDEX if not exists clustering_results_id_idx
+            on clustering_results (id);""")
+conn.commit()
+print('Index on id in clustering_results exists.')
 
 # get the uid list from the uid_trips table
 c.execute(f"""SELECT DISTINCT(uid) FROM uid_positions
@@ -49,8 +46,8 @@ c.close()
 conn.close()
 
 
-#%%
-def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
+# %%
+def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=False):
     iteration_start = datetime.datetime.now()
     table_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
     # create db connections within the loop
@@ -64,15 +61,13 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=True):
         df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
         # drop the lat/lon to save space
         df_results = df_results.drop(['lat', 'lon'], axis=1)
-        # add the clust_id to the uid to make uid unique clusters.
-        #df_results['clust_id'] = df_results['clust_id'].astype('str') + '_' + uid[0]
         # write the results to the db
         df_results.to_sql(name=table_name, con=engine_pg,
                           if_exists='append', method='multi', index=False)
     except Exception as e:
         print(f'UID {uid[0]} error in clustering or writing results to db.')
         print(e)
-    if print_verbose == True:
+    if print_verbose:
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
         uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
         percentage = (uids_completed / len(uid_list)) * 100
@@ -88,8 +83,7 @@ first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 # for optics, just put the max eps in for list of epsilons.
 epsilons_km = [5]
-min_samples = [25]
-#min_samples = [25, 50, 100, 200, 300, 400, 500]
+min_samples = [25, 50, 100, 200, 300, 400, 500]
 method = 'optics'
 
 for eps_km in epsilons_km:
@@ -117,7 +111,7 @@ for eps_km in epsilons_km:
         # execute the function with pooled workers.  This will populate the empty table
         with Pool(20) as p:
             try:
-                 p.starmap(pooled_clustering, zip(uid_list, repeat(eps_km), repeat(min_samp), repeat(method)))
+                p.starmap(pooled_clustering, zip(uid_list, repeat(eps_km), repeat(min_samp), repeat(method)))
             except Exception as e:
                 print('Error in pooling:', e)
         print(f'Finished pooled clustering at {datetime.datetime.now()}')
@@ -130,12 +124,16 @@ for eps_km in epsilons_km:
         conn.commit()
         print(f'Clean column for {params_name} exists at {datetime.datetime.now()}.')
 
-        # add foriegn keys to speed up the join
-        print('Adding foreign keys ...')
-        c.execute(f"""ALTER TABLE {params_name} ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES clustering_results (id)""")
-        conn.commit()
-        print(f'Foreign keys added at {datetime.datetime.now()}.')
-
+        # add foreign keys to speed up the join
+        try:
+            print('Adding foreign keys ...')
+            c.execute(f"""ALTER TABLE {params_name} ADD CONSTRAINT id_to_id 
+            FOREIGN KEY (id) REFERENCES clustering_results (id)""")
+            conn.commit()
+            print(f'Foreign keys added at {datetime.datetime.now()}.')
+        except Exception as e:
+            print("Error building foreign key.")
+            print(e)
         print('Updating clustering_results table...')
         # take the clust_ids from the temp table and insert them into the temp table
         sql_update = f"UPDATE clustering_results AS c " \
@@ -147,6 +145,7 @@ for eps_km in epsilons_km:
         # delete the temp table
         c.execute(sql_drop_table)
         conn.commit()
+
         # close db connections
         c.close()
         conn.close()
