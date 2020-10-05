@@ -136,12 +136,12 @@ rollup_list = []
     #determine distances
     dist = determine_min_distances(centers,'clust_id',ports,'port_id')
     df_dist = pd.DataFrame(dist, columns=['nearest_port_dist_from_center', 'clust_id', 
-                                          'nearest_port_id'])
+                                          'nearest_site_id'])
     
     # merge the full centers file with the results of the haversine equation
     df_summary = pd.merge(centers, df_dist, how='left', on='clust_id')
     df_summary = pd.merge(df_summary, ports[['port_name','port_id']], how='left', 
-                          left_on='nearest_port_id', right_on='port_id').drop('port_id', axis=1)
+                          left_on='nearest_site_id', right_on='port_id').drop('port_id', axis=1)
     df_summary = df_summary.rename({'port_name':'nearest_port_name',
                                     'lat':'average_lat', 'lon':'average_lon'}, axis=1)
     

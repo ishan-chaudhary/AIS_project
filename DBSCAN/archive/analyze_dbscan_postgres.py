@@ -68,7 +68,7 @@ def center_calc(df_results):
     nearest_list = []
     for i in range(len((points_of_int))):
         dist, ind = tree.query( points_of_int[i,:].reshape(1, -1), k=1)
-        nearest_dict ={'nearest_port_id':ports.iloc[ind[0][0]].loc['port_id'], 
+        nearest_dict ={'nearest_site_id':ports.iloc[ind[0][0]].loc['port_id'],
                        'nearest_port_dist':dist[0][0]*6371.0088}
         nearest_list.append(nearest_dict)
     df_nearest = pd.DataFrame(nearest_list)
