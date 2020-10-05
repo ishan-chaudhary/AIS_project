@@ -36,7 +36,7 @@ def get_ports_wpi(engine):
 
 def get_ports_labeled(table_name, engine):
     ports_labeled = pd.read_sql_table(table_name, con=engine,
-                             columns=['port_name', 'nearest_port_id', 'count'])
+                             columns=['port_name', 'nearest_site_id', 'count'])
     return ports_labeled
 
 
@@ -64,7 +64,7 @@ def calc_dist(df_results):
     nearest_list = []
     for i in range(len((points_of_int))):
         dist, ind = tree.query( points_of_int[i,:].reshape(1, -1), k=1)
-        nearest_dict ={'nearest_port_id':ports_wpi.iloc[ind[0][0]].loc['port_id'], 
+        nearest_dict ={'nearest_site_id':ports_wpi.iloc[ind[0][0]].loc['port_id'],
                        'nearest_port_dist':dist[0][0]*6371.0088}
         nearest_list.append(nearest_dict)
     df_nearest = pd.DataFrame(nearest_list)
@@ -115,9 +115,9 @@ def calc_stats(df_rollup, ports_labeled, noise_filter):
     # are near a given port.  Increasing this will increase recall because there
     # are fewer "hard" ports to indetify with very little activity.
     df_stats = pd.merge((df_rollup[df_rollup['nearest_port_dist']<5]
-                        .drop_duplicates('nearest_port_id')),
+                        .drop_duplicates('nearest_site_id')),
                         df_ports_labeled[df_ports_labeled['count'] > noise_filter], 
-                        how='outer', on='nearest_port_id', indicator=True)        
+                        how='outer', on='nearest_site_id', indicator=True)
     # this df lists where the counts in the merge.
     # left_only are ports only in the dbscan.  (false positives for dbscan)
     # right_only are ports only in the ports near positions.  (false negatives for dbscan)
@@ -128,7 +128,7 @@ def calc_stats(df_rollup, ports_labeled, noise_filter):
     stats_recall = values['both']/(values['both']+values['right_only'])
     # precision is the proportion of selected items that are relevant.
     # it is the number of true positives our of all items selected by dbscan.
-    stats_precision = values['both']/len(df_rollup.drop_duplicates('nearest_port_id'))
+    stats_precision = values['both']/len(df_rollup.drop_duplicates('nearest_site_id'))
     # now find the f_measure, which is the harmonic mean of precision and recall
     stats_f_measure = calc_harmonic_mean(stats_precision, stats_recall)
     

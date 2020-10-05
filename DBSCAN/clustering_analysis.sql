@@ -1,4 +1,4 @@
---return clust_id, total points, avg_geom, nearest_port_id, site name and site geom
+--return clust_id, total points, avg_geom, nearest_site_id, site name and site geom
 with final as(
 	-- creates summary for the clustering results joined with original poistion info
 	with summary as (
@@ -13,9 +13,9 @@ with final as(
 	--to get the closest site for each cluster
 	select concat(summary.clust_result::text, '_', summary.uid::text) as clust_id, 
 	summary.total_points,
-	sites.site_id as nearest_port_id, 
+	sites.site_id as nearest_site_id,
 	sites.port_name as site_name,
-	(ST_Distance(sites.geom::geography, summary.avg_geom::geography)/1000) AS nearest_port_dist_km
+	(ST_Distance(sites.geom::geography, summary.avg_geom::geography)/1000) AS nearest_site_dist_km
 	from summary
 	cross join lateral
 		(select sites.site_id, sites.port_name, sites.geom
@@ -28,9 +28,9 @@ insert into clustering_rollup (total_clusters, avg_points, average_dist_nearest_
 							  site_names, site_ids)
 select count(final.clust_id), 
 avg(final.total_points), 
-avg(final.nearest_port_dist_km),
+avg(final.nearest_site_dist_km),
 array_agg(distinct(final.site_name)),
-array_agg(distinct(final.nearest_port_id))
+array_agg(distinct(final.nearest_site_id))
 from final
 
 SELECT *
@@ -46,11 +46,11 @@ with metrics as (
 		with ports_3km as (
 		--select all the nearest port_ids less than the set distance 
 		--that have a minimum number of points.
-		select ARRAY(select distinct (n.nearest_port_id)
+		select ARRAY(select distinct (n.nearest_site_id)
 			from nearest_site as n
-			where n.nearest_port_dist_km < 3
-			group by nearest_port_id
-			having count(n.nearest_port_id) > 10) as all_sites)
+			where n.nearest_site_dist_km < 3
+			group by nearest_site_id
+			having count(n.nearest_site_id) > 10) as all_sites)
 		-- get the intersection of all sites and the clustering sites as common_sites,
 		-- all of the sites with min points within 3km of a port as all sites
 		select c.name, c.total_sites,
@@ -92,12 +92,12 @@ from table1
 
 
 --find all ports within 5km of each point
-select n.nearest_port_id, sites.port_name, count(n.nearest_port_id) as pos_count
+select n.nearest_site_id, sites.port_name, count(n.nearest_site_id) as pos_count
 from nearest_site as n, sites
-where nearest_port_dist_km < 3
-and sites.site_id = n.nearest_port_id
-group by nearest_port_id, sites.port_name
-having count(n.nearest_port_id) > 10
+where nearest_site_dist_km < 3
+and sites.site_id = n.nearest_site_id
+group by nearest_site_id, sites.port_name
+having count(n.nearest_site_id) > 10
 order by pos_count
 
 
