@@ -56,12 +56,12 @@ conn.close()
 
 
 # %%
-def pooled_clustering(uid, eps_km, min_samp, eps_time, method, print_verbose=False):
+def pooled_clustering(uid, eps_km, min_samp, eps_time, method, print_verbose=True):
     iteration_start = datetime.datetime.now()
     if eps_time == None:
-        table_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}_{eps_time}"
-    else:
         table_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
+    else:
+        table_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}_{eps_time}"
     # create db connections within the loop
     engine_pg = gnact.utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
     conn_pg = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
@@ -82,7 +82,7 @@ def pooled_clustering(uid, eps_km, min_samp, eps_time, method, print_verbose=Fal
         print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
         uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
         percentage = (uids_completed / len(uid_list)) * 100
-        print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps and {min_samp} min sample run.')
+        print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps, {eps_time} for time, and {min_samp} min sample run.')
     # close the connections
     c_pg.close()
     conn_pg.close()
@@ -93,8 +93,8 @@ def pooled_clustering(uid, eps_km, min_samp, eps_time, method, print_verbose=Fal
 first_tick = datetime.datetime.now()
 print('Starting Processing at: ', first_tick.time())
 # for optics, just put the max eps in for list of epsilons.
-epsilons_km = [1, 3, 5]
-min_samples = [25, 50, 100, 200, 300]
+epsilons_km = [1, 3]
+min_samples = [50, 100, 200, 300]
 epsilons_time = [360, 600, 840]
 method = 'stdbscan'
 
@@ -103,9 +103,9 @@ for eps_km in epsilons_km:
         for eps_time in epsilons_time:
             iteration_start = datetime.datetime.now()
             if eps_time == None:
-                params_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}_{eps_time}"
-            else:
                 params_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
+            else:
+                params_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}_{eps_time}"
             print(f'Starting processing for {params_name}...')
             # create db connections for outside the loop
             conn = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
