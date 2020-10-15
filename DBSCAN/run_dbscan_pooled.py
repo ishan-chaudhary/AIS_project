@@ -9,13 +9,10 @@ import gnact
 from gnact import utils
 from gnact import clust
 
-from importlib import reload
 import warnings
 
 warnings.filterwarnings('ignore')
 
-# noinspection PyTypeChecker
-reload(gnact)
 # %% set parameters
 # id number of cores and set workers.  use n-1 workers to keep from crashing machine.
 cores = os.cpu_count()
@@ -23,13 +20,13 @@ workers = cores - 1
 print(f'This machine has {cores} cores.  Will use {workers} for multiprocessing.')
 
 # set tables for processing
-source_table = 'ship_sample'
-clustering_results_table = 'clustering_results_sample'
-clustering_times_table = 'clustering_times_sample'
+source_table = 'uid_positions_jan'
+clustering_results_table = 'clustering_results'
+clustering_times_table = 'clustering_times'
 
 # to control date range from target table
 start_time = '2017-01-01 00:00:00'
-end_time = '2017-01-10 00:00:00'
+end_time = '2017-02-01 00:00:00'
 
 # used in dbscan and stdbscan as eps, optics and hdbscan as max eps
 epsilons_km = [3]
