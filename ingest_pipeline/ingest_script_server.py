@@ -66,7 +66,7 @@ c.close()
 # Keep commented out unless we are re-ingesting everything.
 # gsta.drop_table('uid_info', conn)
 # gsta.drop_table('imported_data', conn)
-# gsta.drop_table('uid_positions_status', conn)
+# gsta.drop_table('uid_positions', conn)
 # gsta.drop_table('uid_trips', conn)
 # %% set up proc and error log
 current_folder = '/home/patrickfmaus/AIS_project'
@@ -92,7 +92,7 @@ log.close()
 
 # Create "uid_position" table in the  database.
 c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS uid_positions_status
+c.execute("""CREATE TABLE IF NOT EXISTS uid_positions
 (id serial primary key, 
 uid text, 
 time timestamp, 
@@ -136,6 +136,7 @@ c.close()
 #
 # make_sites(conn=conn)
 
+## need to chang to read csv, and to add node 0 as open ocean.
 
 # %%
 def download_url(link, download_path, unzip_path, file_name, chunk_size=10485760):
@@ -186,7 +187,7 @@ def parse_sql(file_name, conn=conn):
         df.to_sql(name='imported_data', con=loc_engine, if_exists='append', method='multi', index=False)
     print('Copying complete!')
     # this will only insert positions from cargo ship types
-    c.execute("""INSERT INTO uid_positions_status (uid, time, geom, lat, lon, sog, cog, status, anchored, moored, underway)
+    c.execute("""INSERT INTO uid_positions (uid, time, geom, lat, lon, sog, cog, status, anchored, moored, underway)
                 SELECT uid, 
                 time, 
                 ST_SetSRID(ST_MakePoint(lon, lat), 4326), 
@@ -226,7 +227,7 @@ def make_trips(new_table_name, source_table, conn):
                 FROM {source_table} as pos
                 GROUP BY pos.uid) AS foo;""")
     conn.commit()
-    c.execute(f"""CREATE INDEX if not exists trips_uid_idx on {new_table_name} (uid);""")
+    c.execute(f"""ALTER TABLE {new_table_name} ADD PRIMARY KEY (uid)""")
     conn.commit()
     c.close()
 
@@ -314,7 +315,7 @@ conn.close()
 tick = datetime.datetime.now()
 print('Making trips table')
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-make_trips('uid_trips', 'uid_positions_status', conn=conn)
+make_trips('uid_trips', 'uid_positions', conn=conn)
 print('Trips table built.')
 tock = datetime.datetime.now()
 lapse = tock - tick
@@ -322,17 +323,24 @@ print('Time elapsed: {} \n'.format(lapse))
 conn.close()
 # %% indices.  These can take a long time to build.
 tick = datetime.datetime.now()
-print('Adding indices to uid_positions_status')
-
+print('Adding indices to uid_positions')
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists position_uid_idx 
-            on uid_positions_status (uid);""")
+            on uid_positions (uid);""")
+conn.commit()
+c.execute("""CREATE INDEX if not exists position_uid_time
+            on uid_positions (time);""")
 conn.commit()
 # c.execute("""CREATE INDEX if not exists position_geom_idx
-#             ON uid_positions_status USING GIST (geom);""")
+#             ON uid_positions USING GIST (geom);""")
 # conn.commit()
 print('Indices built.')
+print('Adding foreign keys...')
+c.execute("""ALTER TABLE uid_positions ADD CONSTRAINT uid_to_uid FOREIGN KEY (uid) REFERENCES uid_trips (uid)""")
+conn.commit()
+print('Foreign keys added.')
+
 tock = datetime.datetime.now()
 lapse = tock - tick
 print('Time elapsed: {} \n'.format(lapse))

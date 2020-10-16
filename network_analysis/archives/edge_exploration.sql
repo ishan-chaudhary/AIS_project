@@ -8,4 +8,4 @@ from cargo_edges
 
 select count(distinct(mmsi))
 from ship_ports
-where nearest_port_dist_km < 5
+where nearest_site_dist_km < 5

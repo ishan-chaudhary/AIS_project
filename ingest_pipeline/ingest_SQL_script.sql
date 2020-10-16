@@ -49,7 +49,7 @@ FROM (
  --need to add indicies in prod still
  create table ship_ports as
  with knn as (select posit.id, posit.uid, posit.time, posit.geom as ship_posit,
- 	wpi.index_no as nearest_port_id,
+ 	wpi.index_no as nearest_site_id,
  	wpi.geog as port_geog
  	from cargo_ship_position as posit
  	cross join lateral
@@ -59,8 +59,8 @@ FROM (
  	 order by
  	wpi.geom <-> posit.geom limit 1)
  	as wpi)
- select knn.id, knn.uid, knn.time, knn.nearest_port_id,
- (ST_Distance(knn.port_geog, knn.ship_posit::geography)/1000) AS nearest_port_dist_km
+ select knn.id, knn.uid, knn.time, knn.nearest_site_id,
+ (ST_Distance(knn.port_geog, knn.ship_posit::geography)/1000) AS nearest_site_dist_km
  from knn
  join ship_position_1000 as posit
  on knn.id = posit.id
@@ -71,12 +71,12 @@ FROM (
 create table ports_5k_positions as
 select
 	wpi.port_name,
-	ship_ports.nearest_port_id,
+	ship_ports.nearest_site_id,
 	count(ship_ports.id),
 	wpi.geom
 from ship_ports as ship_ports, wpi
-where ship_ports.nearest_port_id=wpi.index_no
-and ship_ports.nearest_port_dist_km < 5
-group by (ship_ports.nearest_port_id, wpi.port_name, wpi.geom)
+where ship_ports.nearest_site_id=wpi.index_no
+and ship_ports.nearest_site_dist_km < 5
+group by (ship_ports.nearest_site_id, wpi.port_name, wpi.geom)
 order by count
 

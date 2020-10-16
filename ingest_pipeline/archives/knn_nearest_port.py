@@ -36,8 +36,8 @@ c.execute("""DROP TABLE IF EXISTS nearest_site""")
 conn.commit()
 c.execute("""CREATE TABLE IF NOT EXISTS nearest_site
 (   id serial,
-    nearest_port_id int,
-    nearest_port_dist_km float
+    nearest_site_id int,
+    nearest_site_dist_km float
 );""")
 conn.commit()
 c.close()
@@ -74,7 +74,7 @@ for df in generator:
                             sites.iloc[ind.reshape(1, -1)[0], :].port_id.values.astype('int'),
                             df['id'].values))
     # define the sql statement
-    sql_insert = "INSERT INTO nearest_site (nearest_port_dist_km, nearest_port_id, id) " \
+    sql_insert = "INSERT INTO nearest_site (nearest_site_dist_km, nearest_site_id, id) " \
                  "VALUES(%s, %s, %s);"
 
     # write to db

@@ -27,6 +27,7 @@ import networkx as nx
 
 # sklearn tools
 from sklearn.cluster import DBSCAN
+from sklearn.cluster import OPTICS
 from sklearn.neighbors import BallTree
 from sklearn.metrics.pairwise import haversine_distances
 
@@ -93,7 +94,7 @@ def dedupe_table(table, conn):
     c.close()
 
 
-# %% DBSCAN run helper functions
+# %% clustering_analysis run helper functions
 def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
                    uid_list, conn, engine, from_schema_name, to_schema_name,
                    lat='lat', lon='lon'):
@@ -109,7 +110,7 @@ def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
         X = (np.radians(df.loc[:, ['lon', 'lat']].values))
         x_id = df.loc[:, 'id'].values
 
-        # execute sklearn's DBSCAN
+        # execute sklearn's clustering_analysis
         dbscan = DBSCAN(eps=eps, min_samples=min_samples, algorithm='ball_tree',
                         metric='haversine', n_jobs=-1)
         dbscan.fit(X)
@@ -126,7 +127,7 @@ def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
         df_results.to_sql(name=new_table_name, con=engine, schema=to_schema_name,
                           if_exists='append', method='multi', index=False)
 
-        print('DBSCAN complete for uid {}.'.format(uid[0]))
+        print('clustering_analysis complete for uid {}.'.format(uid[0]))
 
 
 def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
@@ -140,7 +141,7 @@ def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
     X = (np.radians(df.loc[:, [lon, lat]].values))
     x_id = df.loc[:, 'clust_id'].values
 
-    # execute sklearn's DBSCAN
+    # execute sklearn's clustering_analysis
     dbscan = DBSCAN(eps=eps, min_samples=min_samples, algorithm='ball_tree',
                     metric='haversine', n_jobs=-1)
     dbscan.fit(X)
@@ -156,7 +157,129 @@ def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
     df_results.to_sql(name=new_table_name, con=engine, schema=to_schema_name,
                       if_exists='replace', method='multi', index=False)
 
-    print('DBSCAN complete for {}.'.format(source_table))
+    print('clustering_analysis complete for {}.'.format(source_table))
+
+
+
+################___KEEEEEEEP____################
+def get_uid_posits(uid, engine_pg, start_time='2017-01-01 00:00:00', end_time='2017-02-01 00:00:00'):
+    read_sql = f"""SELECT id, lat, lon
+                FROM uid_positions
+                WHERE uid = '{uid[0]}'
+                AND time between '{start_time}' and '{end_time}'
+                ORDER by time"""
+    df_posits = pd.read_sql_query(read_sql, con=engine_pg)
+    return df_posits
+
+
+def get_clusters(df, eps_km, min_samp, method):
+    # format data for dbscan
+    X = (np.radians(df.loc[:, ['lon', 'lat']].values))
+    x_id = df.loc[:, 'id'].values
+    try:
+        if method == 'dbscan':
+            # execute sklearn's clustering_analysis
+            dbscan = DBSCAN(eps=eps_km/6371, min_samples=min_samp, algorithm='ball_tree',
+                            metric='haversine', n_jobs=1)
+            dbscan.fit(X)
+            results_dict = {'id': x_id, 'clust_id': dbscan.labels_, 'lat': df['lat'], 'lon': df['lon']}
+        if method == 'optics':
+            # execute sklearn's OPTICS
+            # 5km in radians is max eps
+            optics = OPTICS(max_eps=eps_km/6371, min_samples=min_samp, metric='euclidean', cluster_method='xi',
+                            algorithm='kd_tree', n_jobs=1)
+            optics.fit(X)
+            results_dict = {'id': x_id, 'clust_id': optics.labels_, 'lat': df['lat'], 'lon': df['lon']}
+        if method not in ['optics', 'dbscan']:
+            print("Error.  Method must be 'dbscan' or 'optics'.")
+            return None
+    except Exception as e:
+        print(f'UID {uid[0]} error in clustering.')
+        print(e)
+        return None
+    # gather the output as a dataframe
+    df_results = pd.DataFrame(results_dict)
+    # drop all -1 clust_id, which are all points not in clusters
+    df_results = df_results[df_results['clust_id'] != -1]
+    return df_results
+
+def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=False):
+    iteration_start = datetime.datetime.now()
+    dest_column = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
+    temp_table_name = f'temp_{str(uid[0])}'
+
+    engine_pg = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+    conn_pg = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+    c_pg = conn_pg.cursor()
+
+    df_posits = get_uid_posits(uid, engine_pg)
+    df_results = get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
+    df_results = df_results[['id', 'clust_id']]
+
+    try:
+        # write results to database in a temp table with the uid in the name
+        sql_drop_table = f"""DROP TABLE IF EXISTS {temp_table_name};"""
+        c_pg.execute(sql_drop_table)
+        conn_pg.commit()
+        sql_create_table = f"""CREATE TABLE {temp_table_name}
+                           (id int, 
+                           clust_id int);"""
+        c_pg.execute(sql_create_table)
+        conn_pg.commit()
+        df_results.to_sql(name=temp_table_name, con=engine_pg,
+                          if_exists='append', method='multi', index=False)
+        # take the clust_ids from the temp table and insert them into the temp table
+        sql_update = f"UPDATE clustering_results AS c " \
+                     f"SET {dest_column} = clust_id " \
+                     f"FROM {temp_table_name} AS t WHERE t.id = c.id"
+        c_pg.execute(sql_update)
+        conn_pg.commit()
+
+    except Exception as e:
+        print(f'UID {uid[0]} error in writing clustering results to the database.')
+        print(e)
+
+    # delete the temp table
+    c_pg.execute(sql_drop_table)
+    conn_pg.commit()
+    c_pg.close()
+    # close the connections
+    engine_pg.dispose()
+    conn_pg.close()
+
+    if print_verbose == True:
+        print(f'UID {uid[0]} complete in ', datetime.datetime.now() - iteration_start)
+        uids_completed = add_to_uid_tracker(uid, conn_pg)
+        percentage = (uids_completed / len(uid_list)) * 100
+        print(f'Approximately {round(percentage, 3)} complete this run.')
+
+
+def plot_clusters(uid, eps_km, min_samp, method, pg_engine):
+    df_posits = gsta.get_uid_posits(uid, pg_engine, end_time='2018-01-01')
+
+    # plot the track of the ship
+    m = folium.Map(location=[df_posits.lat.median(), df_posits.lon.median()],
+                   zoom_start=4, tiles='OpenStreetMap')
+    points = list(zip(df_posits.lat, df_posits.lon))
+    folium.PolyLine(points).add_to(m)
+
+    # plot the clusters
+    df_results = gsta.get_clusters(df_posits, eps_km, min_samp, method)
+    df_centers = gsta.calc_centers(df_results)
+    for row in df_centers.itertuples():
+        folium.Marker(location=[row.average_lat, row.average_lon],
+                      popup=[f"clustering_analysis: {row.clust_id} \n"
+                             f"Count: {row.total_clust_count}\n"
+                             f"Average Dist from center {round(row.average_dist_from_center,2)}"]
+                      ).add_to(m)
+    print(f'{method.upper()} for UID {uid[0]} with {eps_km} km epsilon '
+          f'and {min_samp} minimum samples '
+          f'found {len(df_centers)} total clusters.')
+    return m
+
+
+#__________KEEP ABOVE__________
+
 
 
 def postgres_dbscan(source_table, new_table_name, eps, min_samples,
@@ -198,7 +321,7 @@ def postgres_dbscan(source_table, new_table_name, eps, min_samples,
         conn.commit()
         c.close()
         print('uid {} complete.'.format(uid[0]))
-    print('DBSCAN complete, {} created'.format(new_table_name))
+    print('clustering_analysis complete, {} created'.format(new_table_name))
 
 
 def make_tables_geom(table, schema_name, conn):
@@ -256,7 +379,7 @@ def execute_dbscan(source_table, from_schema_name, to_schema_name, eps_samples_p
         print("Argument 'method' must be 'sklearn_uid', 'sklearn_rollup', or 'postgres_uid'.")
         return
 
-    print('{} DBSCAN begun at:'.format(method), datetime.datetime.now())
+    print('{} clustering_analysis begun at:'.format(method), datetime.datetime.now())
     outer_tick = datetime.datetime.now()
 
     if method in ['sklearn_uid', 'postgres_uid']:
@@ -270,11 +393,11 @@ def execute_dbscan(source_table, from_schema_name, to_schema_name, eps_samples_p
         eps_km, min_samples = p
         inner_tick = datetime.datetime.now()
 
-        print("""Starting processing on {} DBSCAN with
+        print("""Starting processing on {} clustering_analysis with
         eps_km={} and min_samples={} """.format(method, str(eps_km), str(min_samples)))
 
         # this formulation will yield epsilon based on km desired.
-        # DBSCAN in postgres only works with geom, so distance is based on
+        # clustering_analysis in postgres only works with geom, so distance is based on
         # cartesian plan distance calculations.  This is only approximate
         # because the length of degrees are different for different latitudes.
         # however it should be fine for small distances.
@@ -310,7 +433,7 @@ def execute_dbscan(source_table, from_schema_name, to_schema_name, eps_samples_p
     print('Results for {} method stored in {} schema.'.format(method, to_schema_name))
 
 
-## Analyze DBSCAN helper functions
+## Analyze clustering_analysis helper functions
 def get_sites(engine):
     """Creates a df with all the ports from the WPI"""
     sites = pd.read_sql_table(table_name='sites', con=engine,
@@ -436,7 +559,7 @@ def df_to_table_with_geom(df, rollup_table_name, schema_name, conn, engine):
 def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled,
                    eps_samples_params, id_value, clust_id_value, noise_filter):
     rollup_list = []
-    path = '/Users/patrickmaus/Documents/projects/AIS_project/DBSCAN/rollups/{}/'.format(schema_name)
+    path = '/Users/patrickmaus/Documents/projects/AIS_project/Clustering/rollups/{}/'.format(schema_name)
     if not os.path.exists(path): os.makedirs(path)
     # timekeeping
     outer_tick = datetime.datetime.now()
@@ -444,7 +567,7 @@ def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled,
     # itearate through the epsilons and samples given
     for p in eps_samples_params:
         eps_km, min_samples = p
-        print("""Starting analyzing DBSCAN results with eps_km={} and min_samples={}""".format(str(eps_km),
+        print("""Starting analyzing clustering_analysis results with eps_km={} and min_samples={}""".format(str(eps_km),
                                                                                                str(min_samples)))
         # timekeeping
         tick = datetime.datetime.now()

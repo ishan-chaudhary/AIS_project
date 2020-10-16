@@ -72,7 +72,7 @@ for i in range(len((points_of_int))):
     # the indexing below
     dist, ind = tree.query(points_of_int[i,:].reshape(1, -1), k=1)
     # build a dict with the nearest port id and distance.  add it to a list.
-    nearest_dict ={'nearest_port_id':ports.iloc[ind[0][0]].loc['port_id'], 
+    nearest_dict ={'nearest_site_id':ports.iloc[ind[0][0]].loc['port_id'],
                    'nearest_port_dist':dist[0][0]*6371.0088}
     nearest_list.append(nearest_dict)
 df_nearest = pd.DataFrame(nearest_list)
@@ -117,7 +117,7 @@ for i in range(len((points_of_int))):
     # the indexing below
     dist, ind = tree.query(points_of_int[i,:].reshape(1, -1), k=len(candidates))
     # build a dict with the nearest port id and distance.  add it to a list.
-    nearest_dict ={'nearest_port_id':ports.iloc[ind[0][0]].loc['port_id'], 
+    nearest_dict ={'nearest_site_id':ports.iloc[ind[0][0]].loc['port_id'],
                    'nearest_port_dist':dist[0][0]*6371.0088}
     nearest_list.append(nearest_dict)
 df_nearest = pd.DataFrame(nearest_list)
@@ -163,7 +163,7 @@ result_km = result * 6371000/1000  # multiply by Earth radius to get kilometers
 # df_nearest = pd.DataFrame([df['id'], df['uid'], df['time'],
 #                            sites.iloc[ind.reshape(1, -1)[0], :].port_id.values,
 #                            (dist.reshape(1, -1)[0]*6371.0088)]).T
-# df_nearest.columns = ['id', 'uid', 'time', 'nearest_port_id', 'nearest_port_dist_km']
+# df_nearest.columns = ['id', 'uid', 'time', 'nearest_site_id', 'nearest_site_dist_km']
 #
 # # write df to database
 # df_nearest.to_sql(name='nearest_port', con=loc_engine, if_exists='append',
@@ -203,7 +203,7 @@ result_km = result * 6371000/1000  # multiply by Earth radius to get kilometers
 # df_nearest = pd.DataFrame([df['id'],
 #                            sites.iloc[ind.reshape(1, -1)[0], :].port_id.values,
 #                            (dist.reshape(1, -1)[0]*6371.0088)]).T
-# df_nearest.columns = ['id', 'nearest_port_id', 'nearest_port_dist_km']
+# df_nearest.columns = ['id', 'nearest_site_id', 'nearest_site_dist_km']
 #
 # # write df to database
 # df_nearest.to_sql(name='nearest_site', con=loc_engine, if_exists='append',
@@ -237,7 +237,7 @@ result_km = result * 6371000/1000  # multiply by Earth radius to get kilometers
 #                         sites.iloc[ind.reshape(1, -1)[0], :].port_id.values.astype('int'),
 #                         df['id'].values))
 #
-# sql_insert = "INSERT INTO nearest_site (nearest_port_dist_km, nearest_port_id, id) " \
+# sql_insert = "INSERT INTO nearest_site (nearest_site_dist_km, nearest_site_id, id) " \
 #              "VALUES(%s, %s, %s);"
 #
 # conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
@@ -253,7 +253,7 @@ result_km = result * 6371000/1000  # multiply by Earth radius to get kilometers
 # print(f'{round((size/lapse),3)} rows per second')
 # #%% time trials
 # start = datetime.now()
-# sql_insert = "INSERT INTO nearest_site (nearest_port_dist_km, nearest_port_id, id) " \
+# sql_insert = "INSERT INTO nearest_site (nearest_site_dist_km, nearest_site_id, id) " \
 #              "VALUES(%s);"
 #
 # conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)

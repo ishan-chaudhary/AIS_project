@@ -25,8 +25,8 @@ c.execute("""CREATE TABLE IF NOT EXISTS nearest_port
 (   id int,
     uid text,
     time timestamp,
-    nearest_port_id int,
-    nearest_port_dist_km float
+    nearest_site_id int,
+    nearest_site_dist_km float
 );""")
 conn.commit()
 c.close()
@@ -63,8 +63,8 @@ for df in generator:
         nearest_dict ={'id':df['id'].iloc[i],
                        'uid':df['uid'].iloc[i],
                        'time': df['time'].iloc[i],
-                       'nearest_port_id':ports_wpi.iloc[ind[0][0]].loc['port_id'],
-                       'nearest_port_dist_km':dist[0][0]*6371.0088}
+                       'nearest_site_id':ports_wpi.iloc[ind[0][0]].loc['port_id'],
+                       'nearest_site_dist_km':dist[0][0]*6371.0088}
         nearest_list.append(nearest_dict)
     df_nearest = pd.DataFrame(nearest_list)
 

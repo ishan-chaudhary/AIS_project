@@ -4,12 +4,12 @@
 .DS_Store
 aws_connect.py
 aws_credentials.py
-DBSCAN/report/ML1 Report.docx
+Clustering/report/ML1 Report.docx
 *.pptx
 *.docx
 *.pem
 *.txt
-DBSCAN/report/ML1 Presentation.pdf
+Clustering/report/ML1 Presentation.pdf
 
 gsta_config.py alias
 

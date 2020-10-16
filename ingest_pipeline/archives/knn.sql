@@ -33,13 +33,13 @@ select count(*) from ship_ports where mmsi = '316018616'
 
 ALTER TABLE ship_position_1000
 ADD COLUMN nearest_port_name VARCHAR,
-ADD COLUMN nearest_port_id bigint,
-ADD COLUMN nearest_port_dist_km float;
+ADD COLUMN nearest_site_id bigint,
+ADD COLUMN nearest_site_dist_km float;
 
 INSERT INTO ship_position_1000 (
-	nearest_port_id,
+	nearest_site_id,
 	nearest_port_name,
-	nearest_port_dist_km)
+	nearest_site_dist_km)
 	left join
 	knn where knn.id = ship_position_1000.id
 
@@ -49,7 +49,7 @@ INSERT INTO ship_position_1000 (
 --reworked 10 may.  rerunning.
 create table ship_ports as
 with knn as (select posit.id, posit.mmsi, posit.time, posit.geom as ship_posit,
-	wpi.index_no as nearest_port_id,
+	wpi.index_no as nearest_site_id,
 	wpi.geog as port_geog
 	from cargo_ship_position as posit
 	cross join lateral
@@ -59,29 +59,29 @@ with knn as (select posit.id, posit.mmsi, posit.time, posit.geom as ship_posit,
 	 order by
 	wpi.geom <-> posit.geom limit 1)
 	as wpi)
-select knn.id, knn.mmsi, knn.time, knn.nearest_port_id,
-(ST_Distance(knn.port_geog, knn.ship_posit::geography)/1000) AS nearest_port_dist_km
+select knn.id, knn.mmsi, knn.time, knn.nearest_site_id,
+(ST_Distance(knn.port_geog, knn.ship_posit::geography)/1000) AS nearest_site_dist_km
 from knn
 join ship_position_1000 as posit
 on knn.id = posit.id
 
 --redo of ditance cal 10 may
 with full_posit as
-(select posit.geom, wpi.geog, ports.id, ports.nearest_port_id
+(select posit.geom, wpi.geog, ports.id, ports.nearest_site_id
 from cargo_ship_position as posit, wpi as wpi, ship_ports as ports
-where posit.id=ports.id and wpi.index_no=ports.nearest_port_id
+where posit.id=ports.id and wpi.index_no=ports.nearest_site_id
 limit 10)
-select (ST_Distance(full_posit.geom::geography, full_posit.geog)/1000) AS nearest_port_dist_km
+select (ST_Distance(full_posit.geom::geography, full_posit.geog)/1000) AS nearest_site_dist_km
 from full_posit
 
---this took 17 hours to execute.  oof.  also, should include nearest_port_dist_km.
+--this took 17 hours to execute.  oof.  also, should include nearest_site_dist_km.
 create temp table cargo_ship_position_temp as
 select posit.id, posit.mmsi, posit.time, posit.lat, posit.lon, posit.geom,
 knn.port_id_within_5k
 from (select posit.id,
 	wpi.index_no as port_id_within_5k,
 	wpi.port_name as port_name_within,
-	(ST_Distance(wpi.geog::geometry, posit.geom)/1000) AS nearest_port_dist_km
+	(ST_Distance(wpi.geog::geometry, posit.geom)/1000) AS nearest_site_dist_km
 	from cargo_ship_position as posit
 	cross join lateral
 	(select wpi.index_no,
@@ -93,7 +93,7 @@ from (select posit.id,
 	as wpi) as knn
 join cargo_ship_position as posit
 on knn.id = posit.id
-where knn.nearest_port_dist_km < 5;
+where knn.nearest_site_dist_km < 5;
 
 drop table cargo_ship_position;
 create table cargo_ship_position as
@@ -107,28 +107,28 @@ select * from ship_ports
 where
 
 --analysis of new column in cargo_ship_position
-with port_counts as (select nearest_port_id, count(nearest_port_id) as counts
+with port_counts as (select nearest_site_id, count(nearest_site_id) as counts
 from ship_ports
-where  nearest_port_dist_km < 5
-group by nearest_port_id)
+where  nearest_site_dist_km < 5
+group by nearest_site_id)
 select port_counts.counts, wpi.port_name
 from port_counts, wpi
-where port_counts.nearest_port_id=wpi.index_no
+where port_counts.nearest_site_id=wpi.index_no
 order by counts desc
 
 
 select * from ship_ports
-where nearest_port_dist_km < 2
+where nearest_site_dist_km < 2
 limit 10
 
 
-select max(nearest_port_dist_km)
+select max(nearest_site_dist_km)
 from ship_ports
 
 
-select nearest_port_id, avg(nearest_port_dist_km)
+select nearest_site_id, avg(nearest_site_dist_km)
 from ship_ports
-group by nearest_port_id
+group by nearest_site_id
 order by count desc
 
 select sum(port_id_within_5k)
@@ -136,7 +136,7 @@ from cargo_ship_position
 
 select * from ship_position_sample where id = 678527;
 
-CREATE INDEX ship_position_ports_dist_idx on ship_position_ports (nearest_port_dist_km)
+CREATE INDEX ship_position_ports_dist_idx on ship_position_ports (nearest_site_dist_km)
 
     -- We need all of the original fields from ship_position as well so this block joins the
     -- results back to ALL positions, regardles if they were near a port.

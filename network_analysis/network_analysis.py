@@ -16,6 +16,11 @@ reload(gsta)
 # %%
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
 loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+
+#%%
+sample = pd.read_sql_query("SELECT id, time, lat, lon FROM ais_cargo.public.uid_positions WHERE uid = '636016432'", loc_engine)
+#%%
+sample.to_csv('sample_ship_posit.csv')
 # %% get edgelist from database
 
 df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist_3km', engine=loc_engine, loiter_time=8)
@@ -23,7 +28,7 @@ print(f"{len(df_edgelist)} edges and {len(df_edgelist['Source'].unique())} nodes
 df_edgelist.to_csv('./network_analysis/edgelist.csv', index=False)
 # %% This produces a df that is the summarized edge list with weights
 # for the numbers of a time a ship goes from the source node to the target node.
-# The code executes groupby the source/target id/name, count all the rows, drop the time fields,
+# The code executes gçroupby the source/target id/name, count all the rows, drop the time fields,
 # rename the remaining column from uid to weight, and reset the index
 df_edgelist_weighted = gsta.get_weighted_edgelist(df_edgelist=df_edgelist)
 

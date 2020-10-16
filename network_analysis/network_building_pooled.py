@@ -20,8 +20,8 @@ dist = 1
 
 #%% port check function and build edgelist function
 def port_check(row, dist=dist):
-    if row['nearest_port_dist_km'] <= dist:
-        val = row['nearest_port_id']
+    if row['nearest_site_dist_km'] <= dist:
+        val = row['nearest_site_id']
     else:
         val = 0
     return val
@@ -30,7 +30,7 @@ def build_edgelist(uid):
         print('Working on uid:', uid[0])
         # not efficent, but the easiest way to parse.  Largest number of positions
         # for all data is only about 50,000, so pandas can handle it
-        df = pd.read_sql(f"""SELECT s.id, s.nearest_port_id, s.nearest_port_dist_km,
+        df = pd.read_sql(f"""SELECT s.id, s.nearest_site_id, s.nearest_site_dist_km,
                         pos.time, pos.uid, pos.lat, pos.lon
                         FROM nearest_site AS s, uid_positions AS pos
                         where s.id = pos.id
@@ -43,7 +43,7 @@ def build_edgelist(uid):
         # port_id = 0.  0 will be used for activity "not in port"
         df['node'] = df.apply(port_check, axis=1)
         # no longer need port_id and dist
-        df.drop(['nearest_port_id', 'nearest_port_dist_km'], axis=1, inplace=True)
+        df.drop(['nearest_site_id', 'nearest_site_dist_km'], axis=1, inplace=True)
         # use shift to get the next node and previous node
         df['next_node'] = df['node'].shift(-1)
         df['prev_node'] = df['node'].shift(1)
@@ -92,7 +92,7 @@ c.execute("""CREATE TABLE IF NOT EXISTS {}  (
         time_diff           interval,
         destination         int,
         position_count      bigint,
-        uid                text
+        uid                 text
         )         
 """.format(edge_table))
 conn.commit()

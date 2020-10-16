@@ -29,7 +29,7 @@ ball_tree = BallTree(candidates, leaf_size=40, metric='haversine')
 def get_nn(uid, tree=ball_tree):
     print('Working on uid:', uid[0])
     iteration_start = datetime.datetime.now()
-    loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+    loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
     read_sql = f"""SELECT id, lat, lon
                 FROM uid_positions
                 where uid= '{uid[0]}';"""
@@ -49,11 +49,11 @@ def get_nn(uid, tree=ball_tree):
                             sites.iloc[ind.reshape(1, -1)[0], :].port_id.values.astype('int'),
                             df['id'].values))
     # define the sql statement
-    sql_insert = "INSERT INTO nearest_site (nearest_port_dist_km, nearest_port_id, id) " \
+    sql_insert = "INSERT INTO nearest_site (nearest_site_dist_km, nearest_site_id, id) " \
                  "VALUES(%s, %s, %s);"
 
     # write to db
-    loc_conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+    loc_conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
     c = loc_conn.cursor()
     c.executemany(sql_insert, (data.tolist()))
     loc_conn.commit()
@@ -69,9 +69,9 @@ c = conn.cursor()
 c.execute("""DROP TABLE IF EXISTS nearest_site""")
 conn.commit()
 c.execute("""CREATE TABLE IF NOT EXISTS nearest_site
-(   id int REFERENCES ais_cargo.public.uid_positions (id),
-    nearest_port_id int REFERENCES ais_cargo.public.sites (site_id),
-    nearest_port_dist_km float
+(   id int,
+    nearest_site_id int ,
+    nearest_site_dist_km float
 );""")
 conn.commit()
 c.close()
@@ -79,7 +79,7 @@ conn.close()
 
 #%% get uid lists
 # uid trips and uid_positions have the same unique UIDs.  uid trips is much faster.
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 c.execute(f"""SELECT DISTINCT(uid) FROM uid_trips;""")
 uid_list = c.fetchall()
@@ -101,12 +101,18 @@ lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
 conn.close()
 
-#%% build index
+#%% build index and add foreign keys
 print('Building index...')
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists nearest_site_uid_idx 
             on nearest_site (id);""")
 conn.commit()
-conn.close()
 print('Index built.')
+print('Adding foreign keys...')
+c.execute("""ALTER TABLE nearest_site ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES ais_cargo.public.uid_positions (id)""")
+conn.commit()
+c.execute("""ALTER TABLE nearest_site ADD CONSTRAINT nearest_site_id_to_site_id FOREIGN KEY (nearest_site_id) REFERENCES ais_cargo.public.sites (site_id)""")
+conn.commit()
+conn.close()
+print('Foreign keys built.')
