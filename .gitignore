@@ -20,3 +20,4 @@ gsta_config.py alias
 .idea/workspace.xml
 __pycache__/
 gsta_config.py
+/.idea/
