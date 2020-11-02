@@ -36,8 +36,7 @@ c.execute("""CREATE TABLE IF NOT EXISTS clustering_rollup
 conn.commit()
 c.close()
 
-
-#%% get all the columns from the clustering_results
+# get all the columns from the clustering_results
 # need to add in an option to pull the names in the rollup table, find the intersection,
 # and only analyze new tables.
 c = conn.cursor()
@@ -49,22 +48,30 @@ c.execute("""
    AND column_name != 'id';""")
 clust_results_cols = c.fetchall()
 c.close()
+
+
+c = conn.cursor()
+c.execute("""SELECT DISTINCT (name) from clustering_rollup;""")
+completed_cols = c.fetchall()
+c.close()
 conn.close()
+
+to_do_cols = np.setdiff1d(clust_results_cols,completed_cols)
 
 
 #%%
 def get_cluster_rollup(col):
-    print(f'Starting {col[0]}...')
+    print(f'Starting {col}...')
     sql_analyze = f"""
     --return clust_id, total points, avg_geom, nearest_site_id, site name and site geom
     with final as (
     -- creates summary for the clustering results joined with original position info
         with summary as (
-            select c.{col[0]} as clust_result, pos.uid as uid, count(pos.id) as total_points, 
+            select c.{col} as clust_result, pos.uid as uid, count(pos.id) as total_points, 
             ST_Centroid(ST_union(pos.geom)) as avg_geom
             from uid_positions as pos, clustering_results as c
             where c.id = pos.id
-            and c.{col[0]} is not null
+            and c.{col} is not null
             group by clust_result, uid)
     --from the summary, concats cluster id and uid, gets distance, and cross joins 
     --to get the closest site for each cluster
@@ -83,7 +90,7 @@ def get_cluster_rollup(col):
     --aggregates all data for this set of results into one row
     insert into clustering_rollup (name, total_clusters, avg_points, average_dist_nearest_port,
                           total_sites, site_names, site_ids)
-        select '{col[0]}',
+        select '{col}',
         count(final.clust_id), 
         avg(final.total_points), 
         avg(final.nearest_site_dist_km),
@@ -99,7 +106,7 @@ def get_cluster_rollup(col):
     conn_pooled.commit()
     c_pooled.close()
     conn_pooled.close()
-    print(f'Completed {col[0]}')
+    print(f'Completed {col}')
 
 #%%
 first_tick = datetime.datetime.now()
@@ -107,8 +114,8 @@ print('Starting Processing at: ', first_tick.time())
 
 # execute the function with pooled workers
 
-with Pool(6) as p:
-    p.map(get_cluster_rollup, clust_results_cols)
+with Pool(5) as p:
+    p.map(get_cluster_rollup, to_do_cols)
 
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
