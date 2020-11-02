@@ -31,12 +31,11 @@ end_time = '2017-02-01 00:00:00'
 # used in dbscan and stdbscan as eps, optics and hdbscan as max eps
 epsilons_km = [3]
 # used in all as minimum size of cluster
-min_samples = [50, 100, 200, 300]
+min_samples = [0]
 # if not stdbscan, leave as sing integer in list.  values is minutes
-epsilons_time = [360, 600]
+epsilons_time = [240, 360, 480, 600, 720]
 
-method = 'stdbscan'
-
+method = 'dynamic_segmentation'
 
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
 conn = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
@@ -50,9 +49,9 @@ conn.commit()
 print('clustering_results table exists.')
 
 # make sure the index is created
-c.execute(f"""CREATE INDEX if not exists clustering_results_id_idx on {clustering_results_table} (id);""")
-conn.commit()
-print('Index on id in clustering_results exists.')
+#c.execute(f"""CREATE INDEX if not exists clustering_results_id_idx on {clustering_results_table} (id);""")
+#conn.commit()
+#print('Index on id in clustering_results exists.')
 
 # get the uid list from the uid_trips table
 c.execute(f"""SELECT DISTINCT(uid) FROM {source_table}
@@ -73,7 +72,7 @@ conn.close()
 
 
 # %%
-def pooled_clustering(uid, eps_km, min_samp, eps_time, method, print_verbose=False):
+def pooled_clustering(uid, eps_km, min_samp, eps_time=None, method=None, print_verbose=True):
     start = datetime.datetime.now()
     if eps_time is None:
         table_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
@@ -85,23 +84,23 @@ def pooled_clustering(uid, eps_km, min_samp, eps_time, method, print_verbose=Fal
     try:
         # get the positions for the uid, and cluster them
         df_posits = gnact.clust.get_uid_posits(uid, engine_pg, end_time=end_time)
-        df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, time_window=eps_time,
+        df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_time, min_samp=min_samp, eps_time=eps_time,
                                               method=method)
         # write the results to the db
-        if type(df_results) == type(pd.DataFrame()):
-            df_results[['id', 'clust_id']].to_sql(name=table_name, con=engine_pg, if_exists='append', method='multi',
-                                                  index=False)
+        if type(pd.DataFrame()) == type(df_results) and len(df_results) > 0:
+            df_results[['id', 'clust_id']].to_sql(name=table_name, con=engine_pg, if_exists='append',
+                                                  method='multi', index=False)
     except Exception as e:
         print(f'UID {uid[0]} error in clustering or writing results to db.')
         print(e)
     if print_verbose:
-        print(f'UID {uid[0]} complete in ', datetime.datetime.now() - start)
-        with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn_pg:
-            uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
-        conn_pg.close()
-        percentage = (uids_completed / len(uid_list)) * 100
-        print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps, {eps_time} for time, '
-              f'and {min_samp} min sample run.')
+        print(f'UID {uid[0]} complete in {datetime.datetime.now() - start} with {len(df_results)} rows added.')
+        # with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn_pg:
+        #     uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
+        # conn_pg.close()
+        # percentage = (uids_completed / len(uid_list)) * 100
+        # print(f'Approximately {round(percentage, 3)} complete for {eps_km} km eps, {eps_time} for time, '
+        #       f'and {min_samp} min sample run.')
     # close the connections
     engine_pg.dispose()
 
@@ -119,10 +118,10 @@ for eps_km in epsilons_km:
                 params_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
             elif method in ['optics', 'hdbscan']:
                 params_name = f"{method}_{str(eps_km).replace('.', '_')}"
-            elif method == 'stdbscan':
+            elif method in ['stdbscan', 'dynamic_segmentation']:
                 params_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}_{eps_time}"
             else:
-                print("Method must be one of 'dbscan', 'optics', 'hdbscan', or stdbscan'.")
+                print("Method must be one of 'dbscan', 'optics', 'hdbscan', stdbscan', or dynamic segmentation.")
                 break
             print(f'Starting processing for {params_name}...')
 
@@ -190,6 +189,7 @@ for eps_km in epsilons_km:
             # take the clust_ids from the temp table and insert them into the clustering_results table
 
             try:
+                print('Updating results table...')
                 sql_update = f"UPDATE {clustering_results_table} AS c " \
                              f"SET {params_name} = clust_id " \
                              f"FROM {params_name} AS t WHERE t.id = c.id"
@@ -246,4 +246,3 @@ for eps_km in epsilons_km:
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick
 print('Processing Done.  Total time elapsed: ', lapse)
-
