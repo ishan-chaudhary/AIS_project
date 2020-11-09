@@ -16,10 +16,13 @@ from importlib import reload
 
 reload(gsta)
 
+rollup_table = 'clustering_rollup'
+results_table = 'clustering_results'
+
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS clustering_rollup
+c.execute(f"""CREATE TABLE IF NOT EXISTS {rollup_table}
 (   name text,
     total_clusters int, 
     avg_points float,
@@ -40,18 +43,18 @@ c.close()
 # need to add in an option to pull the names in the rollup table, find the intersection,
 # and only analyze new tables.
 c = conn.cursor()
-c.execute("""
+c.execute(f"""
  SELECT column_name
   FROM information_schema.columns
  WHERE table_schema = 'public'
-   AND table_name   = 'clustering_results'
+   AND table_name   = '{results_table}'
    AND column_name != 'id';""")
 clust_results_cols = c.fetchall()
 c.close()
 
 
 c = conn.cursor()
-c.execute("""SELECT DISTINCT (name) from clustering_rollup;""")
+c.execute(f"""SELECT DISTINCT (name) from {rollup_table};""")
 completed_cols = c.fetchall()
 c.close()
 conn.close()
@@ -69,7 +72,7 @@ def get_cluster_rollup(col):
         with summary as (
             select c.{col} as clust_result, pos.uid as uid, count(pos.id) as total_points, 
             ST_Centroid(ST_union(pos.geom)) as avg_geom
-            from uid_positions as pos, clustering_results as c
+            from uid_positions as pos, {results_table} as c
             where c.id = pos.id
             and c.{col} is not null
             group by clust_result, uid)
@@ -88,7 +91,7 @@ def get_cluster_rollup(col):
         as sites
         )
     --aggregates all data for this set of results into one row
-    insert into clustering_rollup (name, total_clusters, avg_points, average_dist_nearest_port,
+    insert into {rollup_table} (name, total_clusters, avg_points, average_dist_nearest_port,
                           total_sites, site_names, site_ids)
         select '{col}',
         count(final.clust_id), 
@@ -127,7 +130,7 @@ conn.close()
 # so it does not to be parallelized like the get_cluster_rollup function that must be run for each column.
 conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
-c.execute("""
+c.execute(f"""
 -- the metrics table will be where all the final values (except f1) will be stored and used to update the rollup
 with metrics as (
     --the p_r temp table will be used to determine the precision and recall
@@ -147,21 +150,21 @@ with metrics as (
             select c.name, c.total_sites,
             cardinality(ports_3km.all_sites & c.site_ids) as common_sites,
             cardinality(ports_3km.all_sites) as all_sites
-            from ports_3km, clustering_rollup as c)
+            from ports_3km, {rollup_table} as c)
 	--determine the precision and recall
 	select p_r.name, p_r.total_sites, p_r.common_sites, p_r.all_sites,
 	p_r.common_sites::float / p_r.total_sites::float as precision,
 	p_r.common_sites::float / p_r.all_sites::float as recall
 	from p_r)
 --update the clustering results and calculate the f1 measure
-update clustering_rollup set
+update {rollup_table} set
 common_sites = metrics.common_sites, 
 all_sites = metrics.all_sites, 
 precision = metrics.precision, 
 recall = metrics.recall, 
 f1 = (2*metrics.precision*metrics.recall) /(metrics.precision+metrics.recall)
 from metrics
-where clustering_rollup.name = metrics.name
+where {rollup_table}.name = metrics.name
 ;""")
 conn.commit()
 c.close()

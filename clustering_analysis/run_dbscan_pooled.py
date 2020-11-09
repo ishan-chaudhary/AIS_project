@@ -21,7 +21,7 @@ print(f'This machine has {cores} cores.  Will use {workers} for multiprocessing.
 
 # set tables for processing
 source_table = 'uid_positions_jan'
-clustering_results_table = 'clustering_results'
+clustering_results_table = 'clustering_results_segmentation'
 clustering_times_table = 'clustering_times'
 
 # to control date range from target table
@@ -29,7 +29,7 @@ start_time = '2017-01-01 00:00:00'
 end_time = '2017-02-01 00:00:00'
 
 # used in dbscan and stdbscan as eps, optics and hdbscan as max eps
-epsilons_km = [3]
+epsilons_km = [1, 3]
 # used in all as minimum size of cluster
 min_samples = [0]
 # if not stdbscan, leave as sing integer in list.  values is minutes
@@ -84,17 +84,17 @@ def pooled_clustering(uid, eps_km, min_samp, eps_time=None, method=None, print_v
     try:
         # get the positions for the uid, and cluster them
         df_posits = gnact.clust.get_uid_posits(uid, engine_pg, end_time=end_time)
-        df_results = gnact.clust.get_clusters(df_posits, eps_km=eps_time, min_samp=min_samp, eps_time=eps_time,
+        df_clusts = gnact.clust.calc_clusts(df_posits, eps_km=eps_time, min_samp=min_samp, eps_time=eps_time,
                                               method=method)
         # write the results to the db
-        if type(pd.DataFrame()) == type(df_results) and len(df_results) > 0:
-            df_results[['id', 'clust_id']].to_sql(name=table_name, con=engine_pg, if_exists='append',
+        if type(pd.DataFrame()) == type(df_clusts) and len(df_clusts) > 0:
+            df_clusts[['id', 'clust_id']].to_sql(name=table_name, con=engine_pg, if_exists='append',
                                                   method='multi', index=False)
     except Exception as e:
         print(f'UID {uid[0]} error in clustering or writing results to db.')
         print(e)
     if print_verbose:
-        print(f'UID {uid[0]} complete in {datetime.datetime.now() - start} with {len(df_results)} rows added.')
+        print(f'UID {uid[0]} complete in {datetime.datetime.now() - start} with {len(df_clusts)} rows added.')
         # with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn_pg:
         #     uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
         # conn_pg.close()
@@ -175,19 +175,6 @@ for eps_km in epsilons_km:
             finally:
                 if conn is not None:
                     conn.close()
-            # # add foreign keys to speed up the join
-            # try:
-            #     print('Adding foreign keys ...')
-            #     c.execute(f"""ALTER TABLE {params_name} ADD CONSTRAINT id_to_id
-            #     FOREIGN KEY (id) REFERENCES  (id)""")
-            #     conn.commit()
-            #     print(f'Foreign keys added at {datetime.datetime.now()}.')
-            # except Exception as e:
-            #     print("Error building foreign key.")
-            #     print(e)
-
-            # take the clust_ids from the temp table and insert them into the clustering_results table
-
             try:
                 print('Updating results table...')
                 sql_update = f"UPDATE {clustering_results_table} AS c " \
