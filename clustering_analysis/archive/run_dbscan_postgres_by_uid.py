@@ -41,13 +41,13 @@ def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
         # gather the output as a dataframe
         results_dict = {'id':x_id, 'lat':np.degrees(X[:,1]),
                         'lon':np.degrees(X[:, 0]),'clust_id': dbscan.labels_}      
-        df_results = pd.DataFrame(results_dict)
+        df_clusts = pd.DataFrame(results_dict)
         # drop all -1 clust_id, which are all points not in clusters
-        df_results = df_results[df_results['clust_id'] != -1]
-        df_results['uid'] = uid[0]
+        df_clusts = df_clusts[df_clusts['clust_id'] != -1]
+        df_clusts['uid'] = uid[0]
         
         # write df to databse
-        df_results.to_sql(name=new_table_name, con=engine, schema=schema_name,
+        df_clusts.to_sql(name=new_table_name, con=engine, schema=schema_name,
                   if_exists='append', method='multi', index=False )
         
         print('clustering_analysis complete for uid {}.'.format(uid[0]))
@@ -73,12 +73,12 @@ def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
     # gather the output as a dataframe
     results_dict = {'id':x_id, 'lat':np.degrees(X[:,1]),
                     'lon':np.degrees(X[:, 0]),'super_clust_id': dbscan.labels_}      
-    df_results = pd.DataFrame(results_dict)
+    df_clusts = pd.DataFrame(results_dict)
     # drop all -1 clust_id, which are all points not in clusters
-    #df_results = df_results[df_results['super_clust_id'] != -1]
+    #df_clusts = df_clusts[df_clusts['super_clust_id'] != -1]
 
     # write df to databse
-    df_results.to_sql(name=new_table_name, con=engine, schema=schema_name,
+    df_clusts.to_sql(name=new_table_name, con=engine, schema=schema_name,
               if_exists='replace', method='multi', index=False )
     
     print('clustering_analysis complete for {}.'.format(source_table))

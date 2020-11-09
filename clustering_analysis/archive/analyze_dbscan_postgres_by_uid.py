@@ -40,16 +40,16 @@ def get_ports_labeled(table_name, engine):
     return ports_labeled
 
 
-def calc_dist(df_results):
+def calc_dist(df_clusts):
     """This function finds the center of a cluster from dbscan results,
     determines the nearest port, and finds the average distance for each
     cluster point from its cluster center.  Returns a df."""
     
     ports_wpi = get_ports_wpi(loc_engine)
     
-    # make a new df from the df_results grouped by cluster id 
+    # make a new df from the df_clusts grouped by cluster id
     # with the mean for lat and long
-    df_centers = (df_results[['clust_id', 'lat','lon']]
+    df_centers = (df_clusts[['clust_id', 'lat','lon']]
                .groupby('clust_id')
                .mean()
                .rename({'lat':'average_lat', 'lon':'average_lon'}, axis=1)
@@ -74,10 +74,10 @@ def calc_dist(df_results):
     
     # find the average distance from the centerpoint
     # We'll calculate this by finding all of the distances between each point in 
-    # df_results and the center of the cluster.  We'll then take the min and the mean.
+    # df_clusts and the center of the cluster.  We'll then take the min and the mean.
     haver_list = []
     for i in df_centers['clust_id']:
-        X = (np.radians(df_results[df_results['clust_id']==i]
+        X = (np.radians(df_clusts[df_clusts['clust_id']==i]
                         .loc[:,['lat','lon']].values))
         Y = (np.radians(df_centers[df_centers['clust_id']==i]
                         .loc[:,['average_lat','average_lon']].values))
@@ -92,7 +92,7 @@ def calc_dist(df_results):
     df_centers = pd.merge(df_centers, haver_df, how='left', on='clust_id')
     
     # create "total cluster count" column through groupby
-    clust_size = (df_results[['id','clust_id']]
+    clust_size = (df_clusts[['id','clust_id']]
               .groupby('clust_id')
               .count()
               .reset_index()
@@ -157,17 +157,17 @@ def analyze_dbscan(method, engine, schema_name, ports_labeled, eps_samples_param
         # make table name, and pull the results from the correct sql table.
         table = (method + str(eps_km).replace('.','_') + '_' + str(min_samples))
     
-        df_results = pd.read_sql_table(table_name=table, con=engine, schema=schema_name, 
+        df_clusts = pd.read_sql_table(table_name=table, con=engine, schema=schema_name,
                                  columns=['id', 'uid', 'lat','lon', 'clust_id'])
 
         # since we created clusters by uid, we are going to need to redefine 
         # clust_id to include the uid and clust_id        
-        df_results['clust_id'] = (df_results['uid'] + '_' + 
-                                  df_results['clust_id'].astype(int).astype(str))
+        df_clusts['clust_id'] = (df_clusts['uid'] + '_' +
+                                  df_clusts['clust_id'].astype(int).astype(str))
 
         #determine the cluster center point, and find the distance to nearest port
         print('Starting distance calculations... ')
-        df_rollup = calc_dist(df_results)
+        df_rollup = calc_dist(df_clusts)
         print('Finished distance calculations. ')
         
         # calculate stats

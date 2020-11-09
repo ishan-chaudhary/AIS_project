@@ -9,12 +9,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # establish connections and get the edgelist from the database.
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
+conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
 
 # df_edgelist is already sorted by time using the gsta.get_edgelist function
-df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=2)
-
+df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist_3km', engine=loc_engine, loiter_time=2)
+df_edgelist['mmsi'] = df_edgelist['uid']
 
 # %% function definition
 def get_mmsi_history(mmsi, df_edgelist, print=False):
@@ -152,7 +152,7 @@ history_train, history_test = history_split(history, test_percent=.2)
 # choose the ranks that will count as a correct answer.
 # for example, top=3 means that prediction is correct if the the target
 # is in the top 3 predicted ports from the given ngram model.
-top = 3
+top = 1
 
 # build ngrams from 2grams (equivalent to markov chain) to 7grams
 for N in range(2, 8):
@@ -188,7 +188,7 @@ for N in range(2, 8):
 results_dict = dict()
 run_numb = 0
 max_runs = 10 # note that anything above 10 can take minutes to complete
-N = 3
+N = 1
 history = build_history(df_edgelist)
 top = 5
 
@@ -222,11 +222,11 @@ while run_numb < max_runs:
     results_dict[run_numb] = [trues, falses, nones, accuracy, precision]
     run_numb += 1
 
-df_results = pd.DataFrame.from_dict(results_dict, orient='index',
+df_clusts = pd.DataFrame.from_dict(results_dict, orient='index',
                                     columns=['trues', 'falses', 'nones', 'accuracy', 'precision'])
 print(f'Over {run_numb} runs with N=={N}: '
-      f'Average accuracy={round(df_results.accuracy.mean(), 5)} and '
-      f'Average precision={round(df_results.precision.mean(), 5)}')
+      f'Average accuracy={round(df_clusts.accuracy.mean(), 5)} and '
+      f'Average precision={round(df_clusts.precision.mean(), 5)}')
 
 #%% predicting time to arrive
 def predict_time(previous_port, next_port, df):

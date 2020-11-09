@@ -134,10 +134,10 @@ for name, algo in algo_dict.items():
             coms_dict[i] = [c]
 
     # make a df with the results of the algo
-    df_results = pd.DataFrame.from_dict(coms_dict).T.reset_index()
-    df_results.columns = ['node_id', name]
+    df_clusts = pd.DataFrame.from_dict(coms_dict).T.reset_index()
+    df_clusts.columns = ['node_id', name]
     # merge this results with the df_nodes to keep track of all the nodes' clusters
-    df_nodes = pd.merge(df_nodes, df_results, how='left', left_on='node_id', right_on='node_id')
+    df_nodes = pd.merge(df_nodes, df_clusts, how='left', left_on='node_id', right_on='node_id')
     # We can then just adjusted mutual info to find similarity score
     ami_score = metrics.adjusted_mutual_info_score(df_nodes[name], df_nodes['truth'])
     print(f'The AMI for {name} algorithm is {round(ami_score, 3)}, and there were {len(communities)} communities.')

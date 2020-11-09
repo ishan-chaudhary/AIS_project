@@ -109,7 +109,7 @@ plt.()
 #%%
 
 
-df_results =clust.get_clusters(df_enhance[df_enhance['speed_kts']<2], eps_km=3, min_samp=200, method='dbscan')
+df_clusts =clust.calc_clusts(df_enhance[df_enhance['speed_kts']<2], eps_km=3, min_samp=200, method='dbscan')
 
 
 
@@ -165,13 +165,13 @@ print('Processing Done.  Total time elapsed: ', lapse)
 
 #%%
 results_dict = {'id': x_id, 'clust_id': optics.labels_, 'lat': df.lat, 'lon': df.lon}
-df_results = pd.DataFrame(results_dict)
+df_clusts = pd.DataFrame(results_dict)
 # drop all -1 clust_id, which are all points not in clusters
-df_results = df_results[df_results['clust_id'] != -1]
+df_clusts = df_clusts[df_clusts['clust_id'] != -1]
 
 
 #%%
-df_centers = gsta.calc_centers(df_results)
+df_centers = gsta.calc_centers(df_clusts)
 df_centers.to_csv('Clustering/sample_centers.csv', index=False)
 
 #%%
@@ -188,9 +188,9 @@ import gsta_config
 engine = utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
 
 df = clust.get_uid_posits(('636016432',), engine, end_time='2018-01-01')
-df_results = clust.get_clusters(df, eps_km=3, min_samp=200, time_window=0, method='dbscan')
+df_clusts = clust.calc_clusts(df, eps_km=3, min_samp=200, time_window=0, method='dbscan')
 #%%
-df_results = clust.get_clusters(df, min_samp=200, method='hdbscan')
+df_clusts = clust.calc_clusts(df, min_samp=200, method='hdbscan')
 
 #%%
 import hdbscan
@@ -242,8 +242,8 @@ st_dbscan = ST_DBSCAN(eps1=eps_km / 6371, eps2=240, min_samples=min_samp,
                       metric='euclidean', n_jobs=1)
 st_dbscan.fit_frame_split(X, frame_size=10000)
 results_dict = {'id': x_id, 'clust_id': st_dbscan.labels, 'lat': df['lat'].values, 'lon': df['lon'].values}
-df_results = pd.DataFrame(results_dict)
-#df_results = df_results[df_results['clust_id'] >= -1 ]
+df_clusts = pd.DataFrame(results_dict)
+#df_clusts = df_clusts[df_clusts['clust_id'] >= -1 ]
 
 #%%
 #%%
@@ -262,8 +262,8 @@ st_opt = ST_OPTICS(eps1=eps_km / 6371, eps2=600, min_samples=min_samp,
                       metric='euclidean', n_jobs=-1)
 st_opt.fit(X)
 results_dict = {'id': x_id, 'clust_id': st_opt.labels, 'lat': df['lat'].values, 'lon': df['lon'].values}
-df_results = pd.DataFrame(results_dict)
-#df_results = df_results[df_results['clust_id'] >= -1 ]
+df_clusts = pd.DataFrame(results_dict)
+#df_clusts = df_clusts[df_clusts['clust_id'] >= -1 ]
 
 #%%
 df_posits = gnact.clust.get_uid_posits(('636016432',), engine, end_time='2018-01-01')
@@ -287,9 +287,9 @@ clust_id_value='clust_id'
 """This function finds the center of a cluster from dbscan results,
 and finds the average distance for each cluster point from its cluster center.
 Returns a df."""
-# make a new df from the df_results grouped by cluster id
+# make a new df from the df_clusts grouped by cluster id
 # with an aggregation for min/max/count of times and the mean for lat and long
-df_centers = (df_results.groupby(['clust_id'])
+df_centers = (df_clusts.groupby(['clust_id'])
                         .agg({'time':[min, max, 'count'],
                               'lat':'mean',
                               'lon':'mean'})
@@ -297,10 +297,10 @@ df_centers = (df_results.groupby(['clust_id'])
 df_centers.columns=['clust_id','time_min','time_max','total_clust_count','average_lat','average_lon']
 # find the average distance from the centerpoint
 # We'll calculate this by finding all of the distances between each point in
-# df_results and the center of the cluster.  We'll then take the min and the mean.
+# df_clusts and the center of the cluster.  We'll then take the min and the mean.
 haver_list = []
 for i in df_centers[clust_id_value]:
-    X = (np.radians(df_results[df_results[clust_id_value] == i]
+    X = (np.radians(df_clusts[df_clusts[clust_id_value] == i]
                     .loc[:, ['lat', 'lon']].values))
     Y = (np.radians(df_centers[df_centers[clust_id_value] == i]
                     .loc[:, ['average_lat', 'average_lon']].values))
@@ -320,7 +320,7 @@ m = folium.Map(location=[df_posits.lat.median(), df_posits.lon.median()],
 points = list(zip(df_posits.lat, df_posits.lon))
 folium.PolyLine(points).add_to(m)
 # plot the clusters
-df_centers = gnact.clust.calc_centers(df_results)
+df_centers = gnact.clust.calc_centers(df_clusts)
 for row in df_centers.itertuples():
     folium.Marker(location=[row.average_lat, row.average_lon],
                   popup=[f"Cluster: {row.clust_id} \n"

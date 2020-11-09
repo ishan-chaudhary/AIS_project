@@ -26,13 +26,13 @@ st_times = []
 db_times = []
 for v in values:
     tick = datetime.datetime.now()
-    df_results = stdbscan.ST_DBSCAN(df_posits[:v], spatial_threshold=3, temporal_threshold=600, min_neighbors=100)
+    df_clusts = stdbscan.ST_DBSCAN(df_posits[:v], spatial_threshold=3, temporal_threshold=600, min_neighbors=100)
     lapse = datetime.datetime.now() - tick
     print(v, lapse.total_seconds())
     st_times.append(lapse.total_seconds())
 
     tick = datetime.datetime.now()
-    df_results = dbscan.DBSCAN(df_posits[:v], spatial_threshold=3, min_neighbors=100)
+    df_clusts = dbscan.DBSCAN(df_posits[:v], spatial_threshold=3, min_neighbors=100)
     lapse = datetime.datetime.now() - tick
     print(v, lapse.total_seconds())
     db_times.append(lapse.total_seconds())
@@ -42,7 +42,7 @@ for v in values:
 sk_db_times = []
 for v in values:
     tick = datetime.datetime.now()
-    df_results = clust.get_clusters(df_posits[:v], eps_km=3, min_samp=100, method='dbscan')
+    df_clusts = clust.calc_clusts(df_posits[:v], eps_km=3, min_samp=100, method='dbscan')
     lapse = datetime.datetime.now() - tick
     print(v, lapse.total_seconds())
     sk_db_times.append(lapse.total_seconds())
@@ -61,7 +61,7 @@ plt.xlabel('Number of Points')
 plt.show()
 
 #%%
-df_results = clust.get_clusters(df_posits, eps_km=3, min_samp=100, method='dbscan')
+df_clusts = clust.calc_clusts(df_posits, eps_km=3, min_samp=100, method='dbscan')
 
 #%%
 # need new unique cluster ids across each uid.
@@ -70,9 +70,9 @@ clust_count = 0
 df_second_round = pd.DataFrame()
 
 # begin iteration.  Look at each cluster in turn from first round results
-clusters = df_results['clust_id'].unique()
+clusters = df_clusts['clust_id'].unique()
 for c in clusters:
-    df_c = df_results[df_results['clust_id'] == c]
+    df_c = df_clusts[df_clusts['clust_id'] == c]
     X = ((df_c['time'].astype('int').values) / ((10**9)*60)).reshape(-1,1)
     x_id = df_c.loc[:, 'id'].astype('int').values
     # cluster again using DBSCAN with a temportal epsilon (minutes) in one dimension
@@ -81,21 +81,21 @@ for c in clusters:
     dbscan.fit(X)
     results2_dict = {'id': x_id, 'clust_id': dbscan.labels_}
     # gather the output as a dataframe
-    df_results2 = pd.DataFrame(results2_dict)
-    df_results2 = df_results2[df_results2['clust_id'] != -1]
-    clusters2 = df_results2['clust_id'].unique()
+    df_clusts2 = pd.DataFrame(results2_dict)
+    df_clusts2 = df_clusts2[df_clusts2['clust_id'] != -1]
+    clusters2 = df_clusts2['clust_id'].unique()
     for c2 in clusters2:
-        df_c2 = df_results2[df_results2['clust_id'] == int(c2)] # need int rather than numpy.int64
+        df_c2 = df_clusts2[df_clusts2['clust_id'] == int(c2)] # need int rather than numpy.int64
         # need to assign a new cluster id
         df_c2['clust_id'] = clust_count
         df_second_round = df_second_round.append(df_c2)
         clust_count +=1
 
-df_second_results = pd.merge(df_second_round, df_results.drop('clust_id', axis=1), how='left', left_on='id', right_on='id')
+df_second_results = pd.merge(df_second_round, df_clusts.drop('clust_id', axis=1), how='left', left_on='id', right_on='id')
 df_centers = clust.calc_centers(df_second_results)
 
 #%%
 df_stdbscan = pd.read_csv('st_dbscan_results.csv', parse_dates=['time'])
 df_stdbscan = df_stdbscan[df_stdbscan['clust_id']!=-1]
-df_stdbscan_centers = clust.calc_centers(df_results)
+df_stdbscan_centers = clust.calc_centers(df_clusts)
 

@@ -26,7 +26,7 @@ engine.dispose()
 candidates = np.radians(sites.loc[:, ['lat', 'lon']].values)
 ball_tree = BallTree(candidates, leaf_size=40, metric='haversine')
 
-def get_nn(uid, tree=ball_tree):
+def calc_nn(uid, tree=ball_tree):
     print('Working on uid:', uid[0])
     iteration_start = datetime.datetime.now()
     loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
@@ -94,7 +94,7 @@ print('Starting Processing at: ', first_tick.time())
 # execute the function with pooled workers
 if __name__ == '__main__':
     with Pool(38) as p:
-        p.map(get_nn, uid_list)
+        p.map(calc_nn, uid_list)
 
 last_tock = datetime.datetime.now()
 lapse = last_tock - first_tick

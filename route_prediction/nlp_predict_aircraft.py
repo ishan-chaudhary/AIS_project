@@ -1,5 +1,6 @@
 
 from collections import defaultdict
+from collections import Counter
 from nltk import ngrams
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,15 +13,15 @@ import gsta  # geospatial analysis tools
 from multiprocessing import Pool
 
 # %%
-sep = pd.read_csv('air_data/sep_2019.csv')
-oct = pd.read_csv('air_data/oct_2019.csv')
-nov = pd.read_csv('air_data/nov_2019.csv')
-dec = pd.read_csv('air_data/dec_2019.csv')
-jan = pd.read_csv('air_data/jan_2020.csv')
-feb = pd.read_csv('air_data/feb_2020.csv')
+sep = pd.read_csv('./route_prediction/air_data/sep_2019.csv')
+oct = pd.read_csv('./route_prediction/air_data/oct_2019.csv')
+nov = pd.read_csv('./route_prediction/air_data/nov_2019.csv')
+dec = pd.read_csv('./route_prediction/air_data/dec_2019.csv')
+jan = pd.read_csv('./route_prediction/air_data/jan_2020.csv')
+feb = pd.read_csv('./route_prediction/air_data/feb_2020.csv')
 
 # put together the month pieces
-df_flights = pd.concat([sep, oct, nov, dec, jan, feb])
+df_flights = pd.concat([sep])
 del (sep, oct, nov, dec, jan, feb)
 # %%
 df_flights['tail_flight_combo'] = df_flights['TAIL_NUM'] + '_' + df_flights['OP_CARRIER_FL_NUM'].astype('str')
@@ -75,9 +76,23 @@ print('Processing Done.  Total time elapsed: ', lapse)
 
 #%%
 length_dict = {key: len(value.split()) for key, value in history.items()}
-fig, ax = plt.figure()
-plt.hist(length_dict)
+cnt = Counter()
+for l in list(length_dict.values()):
+    cnt[l] += 1
+#%%
+plt.hist(cnt.values())
 plt.show()
+
+#%%
+mini_history = dict()
+counter = 0
+for k, v in piece.items():
+    mini_history[k] = v
+    counter += 1
+    if counter > 10: break
+
+
+
 
 # %% accuracy eval
 # choose the ranks that will count as a correct answer.
@@ -93,7 +108,7 @@ for N in range(2, 10):
     # build model
     model = gsta.build_ngram_model(history_train, N)
 
-    # iterate through uids from history_test and make a prediction for last port for each uid
+    # iterate through uids from history_test and make a prediction for last site for each uid
     accuracy_dict = dict()
     for uid in list(history_test.keys()):
         # get the uid history
@@ -155,11 +170,11 @@ while run_numb < max_runs:
     results_dict[run_numb] = [trues, falses, nones, accuracy, precision]
     run_numb += 1
 
-df_results = pd.DataFrame.from_dict(results_dict, orient='index',
+df_clusts = pd.DataFrame.from_dict(results_dict, orient='index',
                                     columns=['trues', 'falses', 'nones', 'accuracy', 'precision'])
 print(f'Over {run_numb} runs with N=={N}: '
-      f'Average accuracy={round(df_results.accuracy.mean(), 5)} and '
-      f'Average precision={round(df_results.precision.mean(), 5)}')
+      f'Average accuracy={round(df_clusts.accuracy.mean(), 5)} and '
+      f'Average precision={round(df_clusts.precision.mean(), 5)}')
 
 
 # %% predicting time to arrive
@@ -182,8 +197,8 @@ def predict_time(previous_port, next_port, df):
     print('Maximum:', df_set['time_diff'].astype('timedelta64[h]').max())
 
 
-previous_port = 'GLOUCESTER'
-next_port = 'NEWARK'
+#previous_port = 'GLOUCESTER'
+#next_port = 'NEWARK'
 
 predict_time(previous_port, next_port, df_edgelist)
 

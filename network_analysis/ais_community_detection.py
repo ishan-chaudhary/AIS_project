@@ -78,10 +78,10 @@ for name, algo in algo_dict.items():
             coms_dict[i] = [c]
 
     # make a df with the results of the algo
-    df_results = pd.DataFrame.from_dict(coms_dict).T.reset_index()
-    df_results.columns = ['node', name]
+    df_clusts = pd.DataFrame.from_dict(coms_dict).T.reset_index()
+    df_clusts.columns = ['node', name]
     # merge this results with the df_nodes to keep track of all the nodes' clusters
-    df_nodes = pd.merge(df_nodes, df_results, how='left', left_on='node', right_on='node')
+    df_nodes = pd.merge(df_nodes, df_clusts, how='left', left_on='node', right_on='node')
 
     # plot the network clusters
     viz.plot_network_clusters(nx_g, pred_coms, pos, figsize=(5, 5))

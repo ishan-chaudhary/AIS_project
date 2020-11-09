@@ -111,18 +111,18 @@ rollup_list = []
     
     
     #%%
-    df_results = pd.DataFrame(results_dict)
+    df_clusts = pd.DataFrame(results_dict)
     
     #%% Determine the cluster center point, and find the distance to nearest port
     print('starting distance calculations... ')
     # group the results from the haversine by mean to get the centerpoint of the cluster
-    centers = (df_results[['clust_id', 'lat','lon']]
+    centers = (df_clusts[['clust_id', 'lat','lon']]
                .groupby('clust_id')
                .mean()
                .reset_index())
     
     # group the same results by count to get the total number of positions
-    counts = (df_results[['clust_id', 'lat','lon']]
+    counts = (df_clusts[['clust_id', 'lat','lon']]
               .groupby('clust_id')
               .count())
     
@@ -146,11 +146,11 @@ rollup_list = []
                                     'lat':'average_lat', 'lon':'average_lon'}, axis=1)
     
     #find the average distance from the centerpoint
-    #distances = haversine(df_results['lon'].values, df_results['lat'].values, 33.87960, -78.49099)
+    #distances = haversine(df_clusts['lon'].values, df_clusts['lat'].values, 33.87960, -78.49099)
     
     haver_list = []
     for i in df_summary['clust_id']:
-        X = (np.radians(df_results[df_results['clust_id']==i]
+        X = (np.radians(df_clusts[df_clusts['clust_id']==i]
                         .loc[:,['lat','lon']].values))
         Y = (np.radians(df_summary[df_summary['clust_id']==i]
                         .loc[:,['average_lat','average_lon']].values))
@@ -166,7 +166,7 @@ rollup_list = []
     
     #%% Look at how many points are designated as near ports in the database
     print('starting purity calculations...')
-    df_purity = pd.merge(df_results[['clust_id','id']], 
+    df_purity = pd.merge(df_clusts[['clust_id','id']],
                          df_ports[['id', 'port_name', 'port_id']], 
                          how='left', on='id')
     df_purity['port_id'] = df_purity['port_id'].fillna(-1)
@@ -211,7 +211,7 @@ rollup_list = []
     print('All processing for this run complete.')
     print ('Time elapsed: {} \n'.format(lapse))
     rollup_dict = {'eps_km':eps_km, 'min_samples':min_samples, 'time':lapse, 
-                    'numb_obs':len(df_results), 'numb_clusters':len(np.unique(dbscan.labels_))}
+                    'numb_obs':len(df_clusts), 'numb_clusters':len(np.unique(dbscan.labels_))}
 
 #%%
 rollup_list.append(rollup_dict)

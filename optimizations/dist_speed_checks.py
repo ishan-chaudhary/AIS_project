@@ -37,7 +37,7 @@ tick = datetime.datetime.now()
 
 
 table = 'dbscan_results_15_2000'
-df_results = pd.read_sql(table, loc_engine, columns=['id', 'lat','lon','clust_id'])
+df_clusts = pd.read_sql(table, loc_engine, columns=['id', 'lat','lon','clust_id'])
 #%%
 #get all the ports from the world port index
 ports = pd.read_sql('wpi', loc_engine, columns=['index_no', 'port_name',
@@ -47,9 +47,9 @@ ports = ports.rename(columns={'latitude':'lat','longitude':'lon',
 
 #%%
 
-# make a new df from the df_results grouped by cluster id 
+# make a new df from the df_clusts grouped by cluster id
 # with the mean for lat and long
-df_centers = (df_results[['clust_id', 'lat','lon']]
+df_centers = (df_clusts[['clust_id', 'lat','lon']]
            .groupby('clust_id')
            .mean()
            .rename({'lat':'average_lat', 'lon':'average_lon'}, axis=1)
@@ -86,10 +86,10 @@ df_centers = pd.merge(df_centers, df_nearest, how='left',
 #%%
 # find the average distance from the centerpoint
 # We'll calculate this by finding all of the distances between each point in 
-# df_results and the center of the cluster.  We'll then take the min and the mean.
+# df_clusts and the center of the cluster.  We'll then take the min and the mean.
 haver_list = []
 for i in df_centers['clust_id']:
-    X = (np.radians(df_results[df_results['clust_id']==i]
+    X = (np.radians(df_clusts[df_clusts['clust_id']==i]
                     .loc[:,['lat','lon']].values))
     Y = (np.radians(df_centers[df_centers['clust_id']==i]
                     .loc[:,['average_lat','average_lon']].values))

@@ -115,18 +115,18 @@ def sklearn_dbscan(df, eps_km, min_samples):
     results_dict = {'id':x_id,'clust_id': dbscan.labels_,
                     'lon':np.degrees(X[:, 0]),'lat':np.degrees(X[:,1])}
 
-    df_results = pd.DataFrame(results_dict)
-    return df_results
+    df_clusts = pd.DataFrame(results_dict)
+    return df_clusts
 
 #%% center and purity calc functions
-def center_calc(df_results):
+def center_calc(df_clusts):
     """This function finds the center of a cluster from dbscan results,
     determines the nearest port, and finds the average distance for each
     cluster point from its cluster center.  Returns a df."""
     
-    # make a new df from the df_results grouped by cluster id 
+    # make a new df from the df_clusts grouped by cluster id
     # with the mean for lat and long
-    df_centers = (df_results[['clust_id', 'lat','lon']]
+    df_centers = (df_clusts[['clust_id', 'lat','lon']]
                .groupby('clust_id')
                .mean()
                .rename({'lat':'average_lat', 'lon':'average_lon'}, axis=1)
@@ -151,10 +151,10 @@ def center_calc(df_results):
     
     # find the average distance from the centerpoint
     # We'll calculate this by finding all of the distances between each point in 
-    # df_results and the center of the cluster.  We'll then take the min and the mean.
+    # df_clusts and the center of the cluster.  We'll then take the min and the mean.
     haver_list = []
     for i in df_centers['clust_id']:
-        X = (np.radians(df_results[df_results['clust_id']==i]
+        X = (np.radians(df_clusts[df_clusts['clust_id']==i]
                         .loc[:,['lat','lon']].values))
         Y = (np.radians(df_centers[df_centers['clust_id']==i]
                         .loc[:,['average_lat','average_lon']].values))
@@ -168,11 +168,11 @@ def center_calc(df_results):
     df_centers = pd.merge(df_centers, haver_df, how='left', on='clust_id')
     return df_centers
 
-def purity_calc(df_results):
-    """This function takes df_results and calculates how many points are near
+def purity_calc(df_clusts):
+    """This function takes df_clusts and calculates how many points are near
     the same port"""
     
-    df_purity = pd.merge(df_results[['clust_id','id']], 
+    df_purity = pd.merge(df_clusts[['clust_id','id']],
                 # df_full is our full dataset, and when filtered to port_id>0
                 # it returns all positions identifed within a certain dist of a port
                 df_full[df_full['port_id'] > 0].loc[:,['id', 'port_name', 'port_id']], 
@@ -211,7 +211,7 @@ def purity_calc(df_results):
                                       'port_name':'port_name_with_most_points'}, axis=1))
     return df_purity_grouped_top
 
-#%% Run this code when we generate our own df_results from dbscan
+#%% Run this code when we generate our own df_clusts from dbscan
 #epsilons = [.05, .1, .2, .5, .7, 1, 2, 5, 7, 10]
 #samples = [10, 12, 15, 17, 20, 25, 30, 35, 40, 50, 75, 100, 150, 200, 
 #           250, 300, 350, 400, 500, 1000, 1500, 2000]
@@ -227,15 +227,15 @@ for e in epsilons:
         tick = datetime.datetime.now()
 
         # run the dbscan algorithm
-        df_results = sklearn_dbscan(df, e, s)
+        df_clusts = sklearn_dbscan(df, e, s)
 
         #determine the cluster center point, and find the distance to nearest port
         print('Starting distance calculations... ')
-        df_centers = center_calc(df_results)
+        df_centers = center_calc(df_clusts)
         
         #Look at how many points are designated as near ports in the database
         print('Starting purity calculations...')        
-        df_purity = purity_calc(df_results)
+        df_purity = purity_calc(df_clusts)
         
         # roll up 
         df_rollup = pd.merge(df_purity, df_centers, how='left', on='clust_id')
@@ -248,7 +248,7 @@ for e in epsilons:
         print ('Time elapsed: {}'.format(lapse))
         
         rollup_dict = {'eps_km':e, 'min_samples':s, 'time':lapse, 
-                        'numb_obs':len(df_results), 
+                        'numb_obs':len(df_clusts),
                         'average_cluster_count':np.mean(df_rollup['total_clust_count'].iloc[1:]),
                         'average_ports_per_cluster':np.mean(df_rollup['counts_per_port'].iloc[1:]),
                         'average_nearest_port_from_center':np.mean(df_rollup['nearest_port_dist'].iloc[1:]),
@@ -257,7 +257,7 @@ for e in epsilons:
                         'ports_with_most_points':df_rollup['port_name_with_most_points'].iloc[1:].to_list()}
         rollup_list.append(rollup_dict)
         
-        #df_to_table_with_geom(df_results, 'full', e, s)
+        #df_to_table_with_geom(df_clusts, 'full', e, s)
         
         print('Finished with round ', len(rollup_list))
         print('')

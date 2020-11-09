@@ -118,13 +118,13 @@ def sklearn_dbscan(source_table, new_table_name, eps, min_samples,
         # gather the output as a dataframe
         results_dict = {'id': x_id, 'lat': np.degrees(X[:, 1]),
                         'lon': np.degrees(X[:, 0]), 'clust_id': dbscan.labels_}
-        df_results = pd.DataFrame(results_dict)
+        df_clusts = pd.DataFrame(results_dict)
         # drop all -1 clust_id, which are all points not in clusters
-        df_results = df_results[df_results['clust_id'] != -1]
-        df_results['uid'] = uid[0]
+        df_clusts = df_clusts[df_clusts['clust_id'] != -1]
+        df_clusts['uid'] = uid[0]
 
         # write df to databse
-        df_results.to_sql(name=new_table_name, con=engine, schema=to_schema_name,
+        df_clusts.to_sql(name=new_table_name, con=engine, schema=to_schema_name,
                           if_exists='append', method='multi', index=False)
 
         print('clustering_analysis complete for uid {}.'.format(uid[0]))
@@ -149,12 +149,12 @@ def sklearn_dbscan_rollup(source_table, new_table_name, eps, min_samples,
     # gather the output as a dataframe
     results_dict = {'id': x_id, 'lat': np.degrees(X[:, 1]),
                     'lon': np.degrees(X[:, 0]), 'super_clust_id': dbscan.labels_}
-    df_results = pd.DataFrame(results_dict)
+    df_clusts = pd.DataFrame(results_dict)
     # drop all -1 clust_id, which are all points not in clusters
-    df_results = df_results[df_results['super_clust_id'] != -1]
+    df_clusts = df_clusts[df_clusts['super_clust_id'] != -1]
 
     # write df to databse
-    df_results.to_sql(name=new_table_name, con=engine, schema=to_schema_name,
+    df_clusts.to_sql(name=new_table_name, con=engine, schema=to_schema_name,
                       if_exists='replace', method='multi', index=False)
 
     print('clustering_analysis complete for {}.'.format(source_table))
@@ -172,7 +172,7 @@ def get_uid_posits(uid, engine_pg, start_time='2017-01-01 00:00:00', end_time='2
     return df_posits
 
 
-def get_clusters(df, eps_km, min_samp, method):
+def calc_clusts(df, eps_km, min_samp, method):
     # format data for dbscan
     X = (np.radians(df.loc[:, ['lon', 'lat']].values))
     x_id = df.loc[:, 'id'].values
@@ -198,10 +198,10 @@ def get_clusters(df, eps_km, min_samp, method):
         print(e)
         return None
     # gather the output as a dataframe
-    df_results = pd.DataFrame(results_dict)
+    df_clusts = pd.DataFrame(results_dict)
     # drop all -1 clust_id, which are all points not in clusters
-    df_results = df_results[df_results['clust_id'] != -1]
-    return df_results
+    df_clusts = df_clusts[df_clusts['clust_id'] != -1]
+    return df_clusts
 
 def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=False):
     iteration_start = datetime.datetime.now()
@@ -213,8 +213,8 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=False):
     c_pg = conn_pg.cursor()
 
     df_posits = get_uid_posits(uid, engine_pg)
-    df_results = get_clusters(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
-    df_results = df_results[['id', 'clust_id']]
+    df_clusts = calc_clusts(df_posits, eps_km=eps_km, min_samp=min_samp, method=method)
+    df_clusts = df_clusts[['id', 'clust_id']]
 
     try:
         # write results to database in a temp table with the uid in the name
@@ -226,7 +226,7 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=False):
                            clust_id int);"""
         c_pg.execute(sql_create_table)
         conn_pg.commit()
-        df_results.to_sql(name=temp_table_name, con=engine_pg,
+        df_clusts.to_sql(name=temp_table_name, con=engine_pg,
                           if_exists='append', method='multi', index=False)
         # take the clust_ids from the temp table and insert them into the temp table
         sql_update = f"UPDATE clustering_results AS c " \
@@ -264,8 +264,8 @@ def plot_clusters(uid, eps_km, min_samp, method, pg_engine):
     folium.PolyLine(points).add_to(m)
 
     # plot the clusters
-    df_results = gsta.get_clusters(df_posits, eps_km, min_samp, method)
-    df_centers = gsta.calc_centers(df_results)
+    df_clusts = gsta.calc_clusts(df_posits, eps_km, min_samp, method)
+    df_centers = gsta.calc_centers(df_clusts)
     for row in df_centers.itertuples():
         folium.Marker(location=[row.average_lat, row.average_lon],
                       popup=[f"clustering_analysis: {row.clust_id} \n"
@@ -449,13 +449,13 @@ def get_sites_labeled(table_name, engine):
     return ports_labeled
 
 
-def calc_centers(df_results, clust_id_value='clust_id'):
+def calc_centers(df_clusts, clust_id_value='clust_id'):
     """This function finds the center of a cluster from dbscan results,
     and finds the average distance for each cluster point from its cluster center.
     Returns a df."""
-    # make a new df from the df_results grouped by cluster id
+    # make a new df from the df_clusts grouped by cluster id
     # with the mean for lat and long
-    df_centers = (df_results[[clust_id_value, 'lat', 'lon']]
+    df_centers = (df_clusts[[clust_id_value, 'lat', 'lon']]
                   .groupby(clust_id_value)
                   .mean()
                   .rename({'lat': 'average_lat', 'lon': 'average_lon'}, axis=1)
@@ -463,10 +463,10 @@ def calc_centers(df_results, clust_id_value='clust_id'):
 
     # find the average distance from the centerpoint
     # We'll calculate this by finding all of the distances between each point in
-    # df_results and the center of the cluster.  We'll then take the min and the mean.
+    # df_clusts and the center of the cluster.  We'll then take the min and the mean.
     haver_list = []
     for i in df_centers[clust_id_value]:
-        X = (np.radians(df_results[df_results[clust_id_value] == i]
+        X = (np.radians(df_clusts[df_clusts[clust_id_value] == i]
                         .loc[:, ['lat', 'lon']].values))
         Y = (np.radians(df_centers[df_centers[clust_id_value] == i]
                         .loc[:, ['average_lat', 'average_lon']].values))
@@ -479,7 +479,7 @@ def calc_centers(df_results, clust_id_value='clust_id'):
     df_centers = pd.merge(df_centers, haver_df, how='left', on=clust_id_value)
 
     # create "total cluster count" column through groupby
-    clust_size = (df_results[['lat', clust_id_value]]
+    clust_size = (df_clusts[['lat', clust_id_value]]
                   .groupby(clust_id_value)
                   .count()
                   .reset_index()
@@ -573,19 +573,19 @@ def analyze_dbscan(method_used, conn, engine, schema_name, ports_labeled,
         tick = datetime.datetime.now()
         # make table name, and pull the results from the correct sql table.
         table = (method_used + '_' + str(eps_km).replace('.', '_') + '_' + str(min_samples))
-        df_results = pd.read_sql_table(table_name=table, con=engine, schema=schema_name,
+        df_clusts = pd.read_sql_table(table_name=table, con=engine, schema=schema_name,
                                        columns=[id_value, 'lat', 'lon', clust_id_value])
         # since we created clusters by uid, we are going to need to redefine
         # clust_id to include the uid and clust_id
         # since we created clusters by uid, we are going to need to redefine
         # clust_id to include the uid and clust_id
-        df_results['clust_id'] = (df_results[id_value] + '_' +
-                                  df_results[clust_id_value].astype(int).astype(str))
+        df_clusts['clust_id'] = (df_clusts[id_value] + '_' +
+                                  df_clusts[clust_id_value].astype(int).astype(str))
 
         # determine the cluster center point, and find the distance to nearest port
         print('Starting distance calculations... ')
         try:
-            df_rollup = calc_dist(df_results, clust_id_value, engine)
+            df_rollup = calc_dist(df_clusts, clust_id_value, engine)
             print('Finished distance calculations. ')
         except:
             print('There were no clusters for this round.  Breaking loop...')
