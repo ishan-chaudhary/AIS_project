@@ -10,12 +10,12 @@ from sklearn.metrics.pairwise import haversine_distances
 
 import folium
 from gnact import utils, clust, network
-import gsta_config
+import db_config
 import warnings
 warnings.filterwarnings('ignore')
 
 # create the engine to the database
-engine = utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=True)
+engine = utils.connect_engine(db_config.colone_cargo_params, print_verbose=True)
 #%%
 
 

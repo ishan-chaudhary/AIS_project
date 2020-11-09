@@ -6,7 +6,7 @@ import datetime
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 # reload modules when making edits
 from importlib import reload
@@ -21,8 +21,8 @@ try:
 except Exception as e:
     print (e)
 # %%
-# conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+# conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(db_config.colone_cargo_params, print_verbose=False)
 
 # %% create a df from the database
 df = pd.read_sql_query("SELECT id, time, lat, lon, cog, sog, status, anchored, moored, underway"
@@ -183,9 +183,9 @@ from gnact import clust
 from gnact import utils
 import pandas as pd
 import numpy as np
-import gsta_config
+import db_config
 #%%
-engine = utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+engine = utils.connect_engine(db_config.colone_cargo_params, print_verbose=False)
 
 df = clust.get_uid_posits(('636016432',), engine, end_time='2018-01-01')
 df_clusts = clust.calc_clusts(df, eps_km=3, min_samp=200, time_window=0, method='dbscan')

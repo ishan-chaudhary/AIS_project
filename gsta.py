@@ -208,8 +208,8 @@ def pooled_clustering(uid, eps_km, min_samp, method, print_verbose=False):
     dest_column = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
     temp_table_name = f'temp_{str(uid[0])}'
 
-    engine_pg = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
-    conn_pg = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+    engine_pg = gsta.connect_engine(db_config.colone_cargo_params, print_verbose=False)
+    conn_pg = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
     c_pg = conn_pg.cursor()
 
     df_posits = get_uid_posits(uid, engine_pg)

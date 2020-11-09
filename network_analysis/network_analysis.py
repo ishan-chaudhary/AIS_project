@@ -7,15 +7,15 @@ import matplotlib.pyplot as plt
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 # reload modules when making edits
 from importlib import reload
 
 reload(gsta)
 # %%
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(db_config.colone_cargo_params)
 
 #%%
 sample = pd.read_sql_query("SELECT id, time, lat, lon FROM ais_cargo.public.uid_positions WHERE uid = '636016432'", loc_engine)

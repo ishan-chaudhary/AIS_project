@@ -11,7 +11,7 @@ Clustering/report/ML1 Report.docx
 *.txt
 Clustering/report/ML1 Presentation.pdf
 
-gsta_config.py alias
+db_config.py alias
 
 /netrd/
 /graphlets/
@@ -19,5 +19,6 @@ gsta_config.py alias
 .idea/dataSources/
 .idea/workspace.xml
 __pycache__/
-gsta_config.py
+db_config.py
 /.idea/
+/db_config.py

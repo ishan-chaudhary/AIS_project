@@ -7,7 +7,7 @@ Created on Fri May 15 07:49:08 2020
 """
 
 import gsta
-import gsta_config
+import db_config
 
 import pandas as pd
 import numpy as np
@@ -17,7 +17,7 @@ from sklearn.neighbors import BallTree
 
 from multiprocessing import Pool
 
-engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+engine = gsta.connect_engine(db_config.colone_cargo_params)
 #%% get the sits as a df from the database
 sites = gsta.get_sites(engine)
 engine.dispose()
@@ -29,7 +29,7 @@ ball_tree = BallTree(candidates, leaf_size=40, metric='haversine')
 def calc_nn(uid, tree=ball_tree):
     print('Working on uid:', uid[0])
     iteration_start = datetime.datetime.now()
-    loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+    loc_engine = gsta.connect_engine(db_config.colone_cargo_params, print_verbose=False)
     read_sql = f"""SELECT id, lat, lon
                 FROM uid_positions
                 where uid= '{uid[0]}';"""
@@ -53,7 +53,7 @@ def calc_nn(uid, tree=ball_tree):
                  "VALUES(%s, %s, %s);"
 
     # write to db
-    loc_conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+    loc_conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
     c = loc_conn.cursor()
     c.executemany(sql_insert, (data.tolist()))
     loc_conn.commit()
@@ -64,7 +64,7 @@ def calc_nn(uid, tree=ball_tree):
 
 
 #%% Create "nearest_site" table in the database.
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""DROP TABLE IF EXISTS nearest_site""")
 conn.commit()
@@ -79,7 +79,7 @@ conn.close()
 
 #%% get uid lists
 # uid trips and uid_positions have the same unique UIDs.  uid trips is much faster.
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 c.execute(f"""SELECT DISTINCT(uid) FROM uid_trips;""")
 uid_list = c.fetchall()
@@ -103,7 +103,7 @@ conn.close()
 
 #%% build index and add foreign keys
 print('Building index...')
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists nearest_site_uid_idx 
             on nearest_site (id);""")

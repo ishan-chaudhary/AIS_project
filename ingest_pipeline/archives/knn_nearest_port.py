@@ -7,7 +7,7 @@ Created on Fri May 15 07:49:08 2020
 """
 
 import gsta
-import gsta_config
+import db_config
 
 import pandas as pd
 import numpy as np
@@ -22,15 +22,15 @@ from sklearn.neighbors import NearestNeighbors
 import importlib
 importlib.reload(gsta)
 
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(db_config.colone_cargo_params)
 conn.close()
 
 #%% get the sits as a df from the database
 sites = gsta.get_sites(loc_engine)
 
 #%% Create "nearest_site" table in the database.
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""DROP TABLE IF EXISTS nearest_site""")
 conn.commit()
@@ -46,7 +46,7 @@ conn.close()
 # using pandas.to_sql() took 19 hours.  This implementation took 6.5 hours for 207,178,914 rows
 start = datetime.now()
 # establish the connection
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
 
 # build the BallTree using the ports as the candidates
 candidates = np.radians(sites.loc[:, ['lat', 'lon']].values)
@@ -91,7 +91,7 @@ print('Total Lapse:', datetime.now()-start)
 conn.close()
 
 #%% build index
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists nearest_site_uid_idx 
             on nearest_site (id);""")

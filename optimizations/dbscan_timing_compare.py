@@ -9,13 +9,13 @@ from sklearn.cluster import DBSCAN
 from sklearn.cluster import OPTICS
 
 from gnact import utils, clust
-import gsta_config
+import db_config
 
 import warnings
 warnings.filterwarnings('ignore')
 #%%
 # create the engine to the database
-engine = utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=True)
+engine = utils.connect_engine(db_config.colone_cargo_params, print_verbose=True)
 # make the df from the data in the database for MSC Ashrui
 df_posits = clust.get_uid_posits(('636016432',), engine, end_time='2018-01-01')
 

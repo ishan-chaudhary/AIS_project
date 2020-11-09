@@ -18,11 +18,11 @@ from sklearn.metrics.pairwise import haversine_distances
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
+loc_engine = gsta.connect_engine(db_config.loc_cargo_params)
 
 
 #%% center and purity calc functions

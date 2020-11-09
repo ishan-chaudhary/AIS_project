@@ -72,7 +72,7 @@ The project has four major phases.
   - from sklearn.cluster import DBSCAN
 
   Customized Modules
-  The analysis in this project uses functions from the gsta module, which stands for GeoSpatial Temporal Analysis module.  The gsta_config file is not share on the repo and stores server information including passwords and credentials.  This replaces the aws_credentials module.
+  The analysis in this project uses functions from the gsta module, which stands for GeoSpatial Temporal Analysis module.  The db_config file is not share on the repo and stores server information including passwords and credentials.  This replaces the aws_credentials module.
 
 # Data Ingest, Cleaning, and Analysis
 

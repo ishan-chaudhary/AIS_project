@@ -5,13 +5,13 @@ from multiprocessing import Pool
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 import importlib
 importlib.reload(gsta)
 
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(db_config.colone_cargo_params)
 
 #%% variable delcaration
 nearest_site_table = 'nearest_site'

@@ -10,10 +10,10 @@ import datetime
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
-aws_conn = gsta.connect_psycopg2(gsta_config.aws_ais_cluster_params)
-loc_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+aws_conn = gsta.connect_psycopg2(db_config.aws_ais_cluster_params)
+loc_conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
 aws_conn.close()    
 loc_conn.close()
 #%% Create Port Activity table 
@@ -72,7 +72,7 @@ def create_port_activity_table(source_table, destination_table, dist, conn):
     lapse = last_tock - first_tick
     print('All Processing Done.  Total time elapsed: ', lapse)
 #%% Run query
-loc_cargo_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+loc_cargo_conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
 create_port_activity_table('cargo_ship_position', 'cargo_port_activity_5k', 5000, loc_cargo_conn)
 #%%
 #create_port_activity_table('ship_position', 'port_activity_5k', 5000, loc_conn)

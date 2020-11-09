@@ -11,14 +11,14 @@ import random
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
-aws_conn = gsta.connect_psycopg2(gsta_config.aws_ais_cluster_params)
-loc_conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+aws_conn = gsta.connect_psycopg2(db_config.aws_ais_cluster_params)
+loc_conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
 aws_conn.close()    
 loc_conn.close()
 
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
 #%% Function for executing SQL
 def execute_sql(SQL):
     c = conn.cursor()

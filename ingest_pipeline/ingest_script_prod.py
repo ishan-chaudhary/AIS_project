@@ -18,11 +18,11 @@ import glob
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 # %%
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
+loc_engine = gsta.connect_engine(db_config.colone_cargo_params)
 
 
 #%%
@@ -113,7 +113,7 @@ c.close()
 
 # %% create WPI table funtion
 wpi_csv_path = current_folder + '/WPI_data/wpi_clean.csv'
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
 
 
 def make_sites(conn, file=wpi_csv_path):
@@ -294,7 +294,7 @@ conn.close()
 # this will populate the roll up table
 tick = datetime.datetime.now()
 print('Making trips table')
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
 make_trips('uid_trips', 'uid_positions', conn=conn)
 print('Trips table built.')
 tock = datetime.datetime.now()
@@ -305,7 +305,7 @@ conn.close()
 tick = datetime.datetime.now()
 print('Adding indices to uid_positions')
 
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
 c = conn.cursor()
 c.execute("""CREATE INDEX if not exists position_uid_idx 
             on uid_positions (uid);""")

@@ -7,7 +7,7 @@ Created on Fri May 15 07:49:08 2020
 """
 
 import gsta
-import gsta_config
+import db_config
 
 import pandas as pd
 import numpy as np
@@ -15,8 +15,8 @@ from datetime import datetime
 
 from sklearn.neighbors import BallTree
 
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
+conn = gsta.connect_psycopg2(db_config.loc_cargo_full_params)
+loc_engine = gsta.connect_engine(db_config.loc_cargo_full_params)
 ports_wpi = gsta.get_ports_wpi(loc_engine)
 
 # %% Create "nearest_port" table in the database.

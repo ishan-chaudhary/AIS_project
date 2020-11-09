@@ -10,7 +10,7 @@ from itertools import repeat
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 from importlib import reload
 
@@ -20,7 +20,7 @@ rollup_table = 'clustering_rollup'
 results_table = 'clustering_results'
 
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 c.execute(f"""CREATE TABLE IF NOT EXISTS {rollup_table}
 (   name text,
@@ -103,7 +103,7 @@ def get_cluster_rollup(col):
     from final
     """
     # run the sql_analyze
-    conn_pooled = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+    conn_pooled = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
     c_pooled = conn_pooled.cursor()
     c_pooled.execute(sql_analyze)
     conn_pooled.commit()
@@ -128,7 +128,7 @@ conn.close()
 # once the rollup table is populated with the total_clusters, total_sites, site_names, site_ids,
 # this query will determine the precision, recall, and f1 score.  This can be once against the entire table
 # so it does not to be parallelized like the get_cluster_rollup function that must be run for each column.
-conn = gsta.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 c.execute(f"""
 -- the metrics table will be where all the final values (except f1) will be stored and used to update the rollup

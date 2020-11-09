@@ -15,7 +15,7 @@ from sklearn.cluster import DBSCAN
 
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 #%%
 def sklearn_dbscan(source_table, new_table_name, eps, min_samples, 
@@ -254,16 +254,16 @@ eps_samples_params = [[2, 100],
 
 #%% execute run against the full data set with parameters the performed the best
 # against the sample data.
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
+loc_engine = gsta.connect_engine(db_config.loc_cargo_params)
 
 execute_dbscan(source_table, eps_samples_params, conn, loc_engine, method='sklearn', 
                    drop_schema=True, drop_table=True)
 conn.close()
 
 #%%
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_params)
+conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
+loc_engine = gsta.connect_engine(db_config.loc_cargo_params)
 #%%
 schema_name='sklearn_dbscan_results_full_2020_05_12'
 eps_km = .5

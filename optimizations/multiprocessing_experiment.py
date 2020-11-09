@@ -1,6 +1,6 @@
 # Geo-Spatial Temporal Analysis package
 import gsta
-import gsta_config
+import db_config
 
 import datetime
 import numpy as np
@@ -15,8 +15,8 @@ from multiprocessing import Process
 from multiprocessing import Pool
 #%%
 # establish connections and get the edgelist from the database.
-conn = gsta.connect_psycopg2(gsta_config.loc_cargo_full_params)
-loc_engine = gsta.connect_engine(gsta_config.loc_cargo_full_params)
+conn = gsta.connect_psycopg2(db_config.loc_cargo_full_params)
+loc_engine = gsta.connect_engine(db_config.loc_cargo_full_params)
 
 # df_edgelist is already sorted by time using the gsta.get_edgelist function
 df_edgelist = gsta.get_edgelist(edge_table='cargo_edgelist', engine=loc_engine, loiter_time=2)

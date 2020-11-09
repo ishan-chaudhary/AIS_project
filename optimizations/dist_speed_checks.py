@@ -240,7 +240,7 @@ result_km = result * 6371000/1000  # multiply by Earth radius to get kilometers
 # sql_insert = "INSERT INTO nearest_site (nearest_site_dist_km, nearest_site_id, id) " \
 #              "VALUES(%s, %s, %s);"
 #
-# conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+# conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
 #
 # c = conn.cursor()
 # c.executemany(sql_insert, (data.tolist()))
@@ -256,7 +256,7 @@ result_km = result * 6371000/1000  # multiply by Earth radius to get kilometers
 # sql_insert = "INSERT INTO nearest_site (nearest_site_dist_km, nearest_site_id, id) " \
 #              "VALUES(%s);"
 #
-# conn = gsta.connect_psycopg2(gsta_config.loc_cargo_params)
+# conn = gsta.connect_psycopg2(db_config.loc_cargo_params)
 #
 # c = conn.cursor()
 # execute_values(cur=c, sql=sql_insert, argslist=data.tolist()[0])

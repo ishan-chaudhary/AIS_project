@@ -4,7 +4,7 @@ from itertools import repeat
 import pandas as pd
 import os
 
-import gsta_config
+import db_config
 import gnact
 from gnact import utils
 from gnact import clust
@@ -38,7 +38,7 @@ epsilons_time = [240, 360, 480, 600, 720]
 method = 'dynamic_segmentation'
 
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
-conn = gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False)
+conn = gnact.utils.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
 # Create "clustering_results" table in the database.
 c.execute(f"""CREATE TABLE IF NOT EXISTS {clustering_results_table}
@@ -79,7 +79,7 @@ def pooled_clustering(uid, eps_km, min_samp, eps_time=None, method=None, print_v
     else:
         table_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}_{eps_time}"
     # create db connections within the loop
-    engine_pg = gnact.utils.connect_engine(gsta_config.colone_cargo_params, print_verbose=False)
+    engine_pg = gnact.utils.connect_engine(db_config.colone_cargo_params, print_verbose=False)
     # get the clustering results
     try:
         # get the positions for the uid, and cluster them
@@ -95,7 +95,7 @@ def pooled_clustering(uid, eps_km, min_samp, eps_time=None, method=None, print_v
         print(e)
     if print_verbose:
         print(f'UID {uid[0]} complete in {datetime.datetime.now() - start} with {len(df_clusts)} rows added.')
-        # with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn_pg:
+        # with gnact.utils.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False) as conn_pg:
         #     uids_completed = gnact.utils.add_to_uid_tracker(uid, conn_pg)
         # conn_pg.close()
         # percentage = (uids_completed / len(uid_list)) * 100
@@ -127,7 +127,7 @@ for eps_km in epsilons_km:
 
             try:
                 # create db connections for outside the loop
-                with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn:
+                with gnact.utils.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False) as conn:
                     with conn.cursor() as c:
                         # create a table for this run to store all of the ids and the clust_id
                         sql_drop_table = f"""DROP TABLE IF EXISTS {params_name};"""
@@ -160,7 +160,7 @@ for eps_km in epsilons_km:
 
             # make sure the method name column exists and is clear
             try:
-                with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn:
+                with gnact.utils.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False) as conn:
                     with conn.cursor() as c:
                         c.execute(f"""ALTER TABLE {clustering_results_table} DROP COLUMN IF EXISTS
                                         {params_name};""")
@@ -180,7 +180,7 @@ for eps_km in epsilons_km:
                 sql_update = f"UPDATE {clustering_results_table} AS c " \
                              f"SET {params_name} = clust_id " \
                              f"FROM {params_name} AS t WHERE t.id = c.id"
-                with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn:
+                with gnact.utils.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False) as conn:
                     with conn.cursor() as c:
                         c.execute(sql_update)
                         conn.commit()
@@ -204,7 +204,7 @@ for eps_km in epsilons_km:
                                  ON CONFLICT (name) DO UPDATE 
                                      SET run = excluded.run, 
                                      time_diff = excluded.time_diff;"""
-                with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn:
+                with gnact.utils.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False) as conn:
                     with conn.cursor() as c:
                         c.execute(sql_upsert)
                         conn.commit()
@@ -218,7 +218,7 @@ for eps_km in epsilons_km:
 
             # delete the temp table
             try:
-                with gnact.utils.connect_psycopg2(gsta_config.colone_cargo_params, print_verbose=False) as conn:
+                with gnact.utils.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False) as conn:
                     with conn.cursor() as c:
                         c.execute(sql_drop_table)
                         conn.commit()
