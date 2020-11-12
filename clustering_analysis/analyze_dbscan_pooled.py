@@ -16,8 +16,10 @@ from importlib import reload
 
 reload(gsta)
 
-rollup_table = 'clustering_rollup'
-results_table = 'clustering_results'
+rollup_table = 'clustering_rollup_sample'
+results_table = 'clustering_results_sample'
+source_table = 'ship_sample'
+nearest_table = 'nearest_sample'
 
 # %% Create needed accessory tables and ensure they are clean.  also get uid list
 conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
@@ -72,7 +74,7 @@ def get_cluster_rollup(col):
         with summary as (
             select c.{col} as clust_result, pos.uid as uid, count(pos.id) as total_points, 
             ST_Centroid(ST_union(pos.geom)) as avg_geom
-            from uid_positions as pos, {results_table} as c
+            from {source_table} as pos, {results_table} as c
             where c.id = pos.id
             and c.{col} is not null
             group by clust_result, uid)
@@ -140,7 +142,7 @@ with metrics as (
         --select all the nearest port_ids less than the set distance 
         --that have a minimum number of points.
         select ARRAY(select distinct (n.nearest_site_id)
-        from nearest_site_jan as n
+        from {nearest_table} as n
         where n.nearest_site_dist_km < 3
         group by nearest_site_id
         -- filters out ports with x or fewer points, which are not likely site visits

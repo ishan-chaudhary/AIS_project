@@ -1,14 +1,7 @@
-# get positions
-# get sites
-# get nearest site for each position
 #%%
 import pandas as pd
-import numpy as np
-from sklearn.neighbors import BallTree
-from sklearn.metrics.pairwise import haversine_distances
+import datetime
 
-
-import folium
 from gnact import utils, clust, network
 import db_config
 import warnings
@@ -16,63 +9,125 @@ warnings.filterwarnings('ignore')
 
 # create the engine to the database
 engine = utils.connect_engine(db_config.colone_cargo_params, print_verbose=True)
-#%%
+#%% Define a rollup function to determine metrics for each iteration of each method.
+def rollup_clustering(epsilons_km, min_samples, epsilons_time, method):
+    method_dict = dict()
+    for eps_km in epsilons_km:
+        for min_samp in min_samples:
+            for eps_time in epsilons_time:
+                iteration_start = datetime.datetime.now()
+                # Set the params_name based on the method
+                if method in ['dbscan', 'optics']:
+                    params_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}"
+                elif method in ['hdbscan']:
+                    params_name = f"{method}_{min_samp}"
+                elif method in ['stdbscan', 'dynamic']:
+                    params_name = f"{method}_{str(eps_km).replace('.', '_')}_{min_samp}_{eps_time}"
+                else:
+                    print("Method must be one of 'dbscan', 'optics', 'hdbscan', stdbscan', or dynamic segmentation.")
+                    break
+                print(f'Starting processing for {params_name}...')
+                first_tick = datetime.datetime.now()
+                df_clusts = clust.calc_clusts(df_posits, eps_km=eps_km, min_samp=min_samp,
+                                              eps_time=eps_time, method=method)
+                results = clust.calc_stats(df_clusts, df_stops, dist_threshold_km)
+                lapse = datetime.datetime.now() - first_tick
+                results['proc_time'] = lapse.total_seconds()
+                method_dict[params_name] = results
+                print(results)
+    return method_dict
 
-
 #%%
-df_sites = clust.get_sites_wpi((engine))
+# make the df from the data in the database for MSC Ashrui
 df_posits = clust.get_uid_posits(('636016432',), engine, end_time='2018-01-01')
-df_clusts = clust.calc_clusts(df_posits, eps_km=3, min_samp=250, method='dbscan')
-df_centers = clust.calc_centers(df_clusts)
+df_sites = clust.get_sites_wpi(engine)
+
+#%%
+dist_threshold_km = 5
+loiter_time_mins = 360
+results_dict = {}
+
+# manually create the missing site near Savannah
+savannah_site = {'site_id':3, 'site_name': 'SAVANNAH_MANUAL_1', 'lat': 32.121167, 'lon':-81.130085,
+               'region':'East_Coast'}
+# add the site to the df_sites
+df_sites = df_sites.append(savannah_site, ignore_index=True) # add savannah
+# recompute the nearest neighbors
 df_nn = clust.calc_nn(df_posits, df_sites)
-df_nearest_sites = clust.calc_nn(df_centers, df_sites, lat='average_lat', lon='average_lon', id='clust_id')
-#%%
+# determine the "ground truth" for this sample
+df_stops = network.calc_static_seg(df_posits, df_nn, df_sites,
+                                   dist_threshold_km, loiter_time_mins)
 
 #%%
-df_edgelist = network.calc_edgelist(df_posits, df_nn, dist_km=3, loiter_time_mins=360)
-df_nearby_activity = network.calc_nearby_activity(df_edgelist, df_sites)
+method = 'dbscan'
+# used in dbscan and stdbscan as eps, optics and hdbscan as max eps
+epsilons_km = [1,3,5]
+# used in all as minimum size of cluster
+min_samples = [25,50,100,200,300,500,1000]
+# if not stdbscan, leave as None if not using temporal clustering.  values in minutes
+epsilons_time = [None]
 
-df_stats = clust.calc_stats(df_clusts, df_sites, df_nearby_activity, dist_threshold=3)
-
+method_dict = rollup_clustering(epsilons_km, min_samples, epsilons_time, method)
+results_dict.update(method_dict)
 
 #%%
-def calc_stats(df_clusts, df_nn, df_sites, noise_filter=10, dist_threshold=3):
-    # this function needs data from both the df_centers and df_nearest_sites to produce a comprehensive cluster rollup
-    df_centers = calc_centers(df_clusts)
-    df_nearest_sites = calc_nn(df_centers, df_sites, lat='average_lat', lon='average_lon', id='clust_id')
-    df_clust_rollup = pd.merge(df_centers, df_nearest_sites, how='inner', left_on='clust_id', right_on='id')
-    df_clust_rollup = df_clust_rollup[['clust_id', 'nearest_site_id', 'dist_km', 'total_clust_count']]
+method = 'optics'
+# used in dbscan and stdbscan as eps, optics and hdbscan as max eps
+epsilons_km = [5]
+# used in all as minimum size of cluster
+min_samples = [25,50,100,200,300,500,1000]
+# if not stdbscan, leave as None if not using temporal clustering.  values in minutes
+epsilons_time = [None]
 
-    # this function also needs a summary of all the sites that the raw data occurs near, grouped and filtered.
-    # drop any points that are farther away than the set distance threshold, drop the id column, groupby the site_id,
-    # get the agg count, and reset index.
-    df_nn_grouped = (df_nn[df_nn['dist_km'] < dist_threshold]
-                     .drop('id', axis=1)
-                     .groupby(['nearest_site_id'])
-                     .agg('count')
-                     .reset_index(drop=False))
-    # rename columns
-    df_nn_grouped.columns = ['nearest_site_id', 'total_raw_count']
-    # filter out any sites that have fewer points than defined in the noise filter
-    df_nn_filtered = df_nn_grouped[df_nn_grouped['total_raw_count'] > noise_filter]
+method_dict = rollup_clustering(epsilons_km, min_samples, epsilons_time, method)
+results_dict.update(method_dict)
 
-    df_stats = pd.merge(df_clust_rollup[df_clust_rollup['dist_km'] < dist_threshold], df_nn_filtered,
-                        how='outer', on='nearest_site_id', indicator=True)
+#%%
+method = 'hdbscan'
+# used in dbscan and stdbscan as eps, optics and hdbscan as max eps
+epsilons_km = [None]
+# used in all as minimum size of cluster
+min_samples = [25,50,100,200,300,500,1000]
+# if not stdbscan, leave as None if not using temporal clustering.  values in minutes
+epsilons_time = [None]
 
-    # this df lists where the counts in the merge.
-    # left_only are sites only in the clustering results.  (false positives for clustering results)
-    # right_only are sites where the raw data was near but no cluster found within dist_treshold.  (false negatives for clustering results)
-    # both are ports in both datasets.  (true positives for clustering results)
-    values = (df_stats['_merge'].value_counts())
-    # recall is the proporation of relevant items selected
-    # it is the number of true positives divided by TP + FN
-    stats_recall = values['both'] / (values['both'] + values['right_only'])
-    # precision is the proportion of selected items that are relevant.
-    # it is the number of true positives our of all items selected by dbscan.
-    stats_precision = values['both'] / len(df_stats)
-    # now find the f_measure, which is the harmonic mean of precision and recall
-    stats_f_measure = 2 * ((stats_precision * stats_recall) / (stats_precision + stats_recall))
-    print(f'Precision: {round(stats_precision,4)}, Recall: {round(stats_recall,4)}, '
-          f'F1: {round(stats_f_measure,4)}')
+method_dict = rollup_clustering(epsilons_km, min_samples, epsilons_time, method)
+results_dict.update(method_dict)
+#%%
+method = 'stdbscan'
+# used in dbscan and stdbscan as eps, optics and hdbscan as max eps
+epsilons_km = [1,3,5]
+# used in all as minimum size of cluster
+min_samples = [25,50,100,200,300,500,1000]
+# if not stdbscan, leave as None if not using temporal clustering.  values in minutes
+epsilons_time = [240,360,480,600,720,1080]
 
-    return df_stats
+method_dict = rollup_clustering(epsilons_km, min_samples, epsilons_time, method)
+results_dict.update(method_dict)
+#%%
+method = 'dynamic'
+# used in dbscan and stdbscan as eps, optics and hdbscan as max eps
+epsilons_km = [1,3,5]
+# used in all as minimum size of cluster
+min_samples = [None]
+# if not stdbscan, leave as None if not using temporal clustering.  values in minutes
+epsilons_time = [240,360,480,600,720,1080]
+
+method_dict = rollup_clustering(epsilons_km, min_samples, epsilons_time, method)
+results_dict.update(method_dict)
+
+#%%
+df_results = pd.DataFrame(results_dict).T
+df_results.to_csv('results.csv')
+df_results = df_results.reset_index(drop=False).rename({'index':'method_full'},axis=1)
+df_results['method_type'] = df_results.method_full.str.split('_').str.get(0)
+df_results['params'] = df_results.method_full.str.split('_').str.slice(start=1).str.join('_')
+#%%
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+g = sns.scatterplot(range(len(df_results)), df_results.recall, hue=df_results.method_type, size=df_results.proc_time)
+g.set_xticks(np.arange(len(df_results)))
+g.set_xticklabels(df_results.params, rotation=60)
+plt.show()
