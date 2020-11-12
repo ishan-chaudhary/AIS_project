@@ -12,11 +12,18 @@ import db_config
 import pandas as pd
 import numpy as np
 import datetime
-
+from multiprocessing import Pool
+import os
 from sklearn.neighbors import BallTree
 
-from multiprocessing import Pool
+cores = os.cpu_count()
+workers = cores - 1
+print(f'This machine has {cores} cores.  Will use {workers} for multiprocessing.')
 
+
+# set tables for processing
+source_table = 'ship_sample'
+target_table = 'nearest_sample'
 engine = gsta.connect_engine(db_config.colone_cargo_params)
 #%% get the sits as a df from the database
 sites = gsta.get_sites(engine)
@@ -31,7 +38,7 @@ def calc_nn(uid, tree=ball_tree):
     iteration_start = datetime.datetime.now()
     loc_engine = gsta.connect_engine(db_config.colone_cargo_params, print_verbose=False)
     read_sql = f"""SELECT id, lat, lon
-                FROM uid_positions
+                FROM {source_table}
                 where uid= '{uid[0]}';"""
     df = pd.read_sql(sql=read_sql, con=loc_engine)
     loc_engine.dispose()
@@ -49,7 +56,7 @@ def calc_nn(uid, tree=ball_tree):
                             sites.iloc[ind.reshape(1, -1)[0], :].port_id.values.astype('int'),
                             df['id'].values))
     # define the sql statement
-    sql_insert = "INSERT INTO nearest_site (nearest_site_dist_km, nearest_site_id, id) " \
+    sql_insert = f"INSERT INTO {target_table} (nearest_site_dist_km, nearest_site_id, id) " \
                  "VALUES(%s, %s, %s);"
 
     # write to db
@@ -66,9 +73,9 @@ def calc_nn(uid, tree=ball_tree):
 #%% Create "nearest_site" table in the database.
 conn = gsta.connect_psycopg2(db_config.colone_cargo_params)
 c = conn.cursor()
-c.execute("""DROP TABLE IF EXISTS nearest_site""")
+c.execute(f"""DROP TABLE IF EXISTS {target_table}""")
 conn.commit()
-c.execute("""CREATE TABLE IF NOT EXISTS nearest_site
+c.execute(f"""CREATE TABLE IF NOT EXISTS {target_table}
 (   id int,
     nearest_site_id int ,
     nearest_site_dist_km float
@@ -78,10 +85,9 @@ c.close()
 conn.close()
 
 #%% get uid lists
-# uid trips and uid_positions have the same unique UIDs.  uid trips is much faster.
 conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
-c.execute(f"""SELECT DISTINCT(uid) FROM uid_trips;""")
+c.execute(f"""SELECT DISTINCT(uid) FROM {source_table};""")
 uid_list = c.fetchall()
 c.close()
 conn.close()
@@ -93,7 +99,7 @@ print('Starting Processing at: ', first_tick.time())
 
 # execute the function with pooled workers
 if __name__ == '__main__':
-    with Pool(38) as p:
+    with Pool(workers) as p:
         p.map(calc_nn, uid_list)
 
 last_tock = datetime.datetime.now()
@@ -105,14 +111,14 @@ conn.close()
 print('Building index...')
 conn = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
 c = conn.cursor()
-c.execute("""CREATE INDEX if not exists nearest_site_uid_idx 
-            on nearest_site (id);""")
+c.execute(f"""CREATE INDEX if not exists {target_table}_idx 
+            on {target_table} (id);""")
 conn.commit()
 print('Index built.')
 print('Adding foreign keys...')
-c.execute("""ALTER TABLE nearest_site ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES ais_cargo.public.uid_positions (id)""")
+c.execute(f"""ALTER TABLE {target_table} ADD CONSTRAINT id_to_id FOREIGN KEY (id) REFERENCES ais_cargo.public.{source_table} (id)""")
 conn.commit()
-c.execute("""ALTER TABLE nearest_site ADD CONSTRAINT nearest_site_id_to_site_id FOREIGN KEY (nearest_site_id) REFERENCES ais_cargo.public.sites (site_id)""")
+c.execute(f"""ALTER TABLE {target_table} ADD CONSTRAINT {target_table}_id_to_site_id FOREIGN KEY ({target_table}_id) REFERENCES ais_cargo.public.sites (site_id)""")
 conn.commit()
 conn.close()
 print('Foreign keys built.')
