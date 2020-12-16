@@ -103,7 +103,7 @@ def get_cluster_rollup(col):
         array_agg(distinct(final.site_name)),
         array_agg(distinct(final.nearest_site_id))
     from final
-    """
+;"""
     # run the sql_analyze
     conn_pooled = gsta.connect_psycopg2(db_config.colone_cargo_params, print_verbose=False)
     c_pooled = conn_pooled.cursor()
@@ -170,3 +170,37 @@ where {rollup_table}.name = metrics.name
 ;""")
 conn.commit()
 c.close()
+
+
+#%%
+# create the engine to the database
+engine = utils.connect_engine(db_config.colone_cargo_params, print_verbose=True)
+col = 'dbscan_3_200'
+source_table = 'uid_positions_jan'
+results_table = 'clustering_results'
+read_sql = f"""    
+-- creates summary for the clustering results joined with original position info
+    with summary as (
+        select c.{col} as clust_result, pos.uid as uid, count(pos.id) as total_points, 
+        ST_Centroid(ST_union(pos.geom)) as avg_geom
+        from {source_table} as pos, {results_table} as c
+        where c.id = pos.id
+        and c.{col} is not null
+        group by clust_result, uid)
+--from the summary, concats cluster id and uid, gets distance, and cross joins 
+--to get the closest site for each cluster
+select concat(summary.clust_result::text, '_', summary.uid::text) as clust_id, 
+    summary.total_points,
+    sites.site_id as nearest_site_id, 
+    sites.port_name as site_name,
+    (ST_Distance(sites.geom::geography, summary.avg_geom::geography)/1000) AS nearest_site_dist_km
+    from summary
+cross join lateral --gets only the nearest port
+    (select sites.site_id, sites.port_name, sites.geom
+    from sites
+    order by sites.geom <-> avg_geom limit 1)
+    as sites
+;"""
+df = pd.read_sql(read_sql, engine)
+
+
